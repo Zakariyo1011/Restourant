@@ -10,39 +10,49 @@ use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
     // Google ga yo'naltirish
-    public function redirectToGoogle()
-    {
-        $url = Socialite::driver('google')->stateless()->redirect()->getTargetUrl();
-        return response()->json(['url' => $url]);
-    }
-
+public function redirectToGoogle()
+{
+    return Socialite::driver('google')->stateless()->redirect();
+}
     // Google callback — foydalanuvchi qaytib kelganda
-    public function handleGoogleCallback()
-    {
-        try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
+ public function handleGoogleCallback()
+{
+    try {
+        $googleUser = Socialite::driver('google')->stateless()->user();
 
-            $user = User::updateOrCreate(
-                ['google_id' => $googleUser->getId()],
-                [
-                    'name'     => $googleUser->getName(),
-                    'email'    => $googleUser->getEmail(),
-                    'role'     => 'owner',
-                    'is_active' => false,
-                ]
-            );
+        // Avval mavjud userni qidirish
+        $user = User::where('google_id', $googleUser->getId())
+                    ->orWhere('email', $googleUser->getEmail())
+                    ->first();
 
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            // Vue.js frontendga yo'naltirish
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
-
-            return redirect("{$frontendUrl}/auth/callback?token={$token}&active={$user->is_active}");
-
-        } catch (\Exception $e) {
-            return redirect(env('FRONTEND_URL') . '/login?error=google_failed');
+        if ($user) {
+            // Mavjud user — faqat google_id yangilash, role o'zgartirmaslik
+            $user->update([
+                'google_id' => $googleUser->getId(),
+                'name'      => $googleUser->getName(),
+            ]);
+        } else {
+            // Yangi user yaratish
+            $user = User::create([
+                'google_id'  => $googleUser->getId(),
+                'name'       => $googleUser->getName(),
+                'email'      => $googleUser->getEmail(),
+                'role'       => 'owner',
+                'is_active'  => false,
+                'password'   => null,
+            ]);
         }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+
+        return redirect("{$frontendUrl}/auth/callback?token={$token}&active={$user->is_active}");
+
+    } catch (\Exception $e) {
+        \Log::error('Google OAuth xato: ' . $e->getMessage());
+        return redirect(env('FRONTEND_URL') . '/login?error=' . urlencode($e->getMessage()));
     }
+}
 
     // Foydalanuvchi ma'lumotlari
     public function me(Request $request)
