@@ -125,4 +125,33 @@ class RestaurantController extends Controller
 
         return response()->json($restaurant->load('location'));
     }
+
+
+    // Restoran o'chirish
+public function destroy(Request $request)
+{
+    $restaurant = $request->user()->restaurant;
+    if (!$restaurant) {
+        return response()->json(['message' => 'Topilmadi'], 404);
+    }
+    if ($restaurant->image_path) {
+        Storage::disk('public')->delete($restaurant->image_path);
+    }
+    $restaurant->delete();
+    return response()->json(['message' => 'O\'chirildi']);
 }
+
+// Arija yuborish (hozircha log, keyinroq Telegram)
+public function sendArija(Request $request)
+{
+    $request->validate(['phone' => 'required|string']);
+    $user = $request->user();
+    $restaurant = $user->restaurant;
+
+    \Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
+
+    return response()->json(['message' => 'Ariza yuborildi']);
+}
+    
+}
+

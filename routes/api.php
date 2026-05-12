@@ -33,3 +33,9 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/admin/restaurants', [AdminController::class, 'restaurants']);
     Route::patch('/admin/restaurants/{restaurant}/toggle', [AdminController::class, 'toggleActive']);
 });
+
+Route::middleware('auth:sanctum')->group(function () {
+    
+    Route::delete('/my-restaurant', [RestaurantController::class, 'destroy']);
+    Route::post('/send-arija', [RestaurantController::class, 'sendArija']);
+});
