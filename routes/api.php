@@ -64,7 +64,7 @@ Route::get('/meta/cuisine-types', function () {
 
 
 
-// Yaqin restoranlar (GPS bo'yicha)
+// Public restoranlar
 Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $lat = $request->query('lat');
     $lng = $request->query('lng');
@@ -95,3 +95,6 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
 
     return response()->json($restaurants);
 });
+
+Route::get('/restaurants', [RestaurantController::class, 'index']);
+Route::get('/restaurants/{id}', [RestaurantController::class, 'show']);
