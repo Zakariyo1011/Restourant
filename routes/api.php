@@ -39,3 +39,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/my-restaurant', [RestaurantController::class, 'destroy']);
     Route::post('/send-arija', [RestaurantController::class, 'sendArija']);
 });
+
+// Statik ma'lumotlar
+Route::get('/meta/cuisine-types', function () {
+    return response()->json([
+        'cuisine_types' => [
+            'uzbek'      => "O'zbek",
+            'tajik'      => 'Tojik',
+            'kazakh'     => 'Qozoq',
+            'kyrgyz'     => 'Qirg\'iz',
+            'turkish'    => 'Turk',
+            'arabic'     => 'Arab',
+            'persian'    => 'Fors',
+            'afghan'     => 'Afghan',
+            'georgian'   => 'Gruzin',
+            'russian'    => 'Rus',
+            'european'   => 'Yevropa',
+            'asian'      => 'Osiyo',
+            'mixed'      => 'Aralash',
+        ],
+        'price_ranges' => ['$', '$$', '$$$'],
+    ]);
+});

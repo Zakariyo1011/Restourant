@@ -54,6 +54,12 @@ class RestaurantController extends Controller
             'latitude'    => 'required|numeric',
             'longitude'   => 'required|numeric',
             'address'     => 'nullable|string',
+            'cuisine_type' => 'nullable|string|max:100',
+            'country'      => 'nullable|string|max:100',
+            'city'         => 'nullable|string|max:100',
+            'price_range'  => 'nullable|in:$,$$,$$$',
+            'website'      => 'nullable|url|max:255',
+            'instagram'    => 'nullable|string|max:255',
         ]);
 
         // Rasm yuklash
@@ -69,6 +75,12 @@ class RestaurantController extends Controller
             'phone'       => $request->phone,
             'image_path'  => $imagePath,
             'is_active'   => false,
+            'cuisine_type' => $request->cuisine_type,
+            'country'      => $request->country,
+            'city'         => $request->city,
+            'price_range'  => $request->price_range,
+            'website'      => $request->website,
+            'instagram'    => $request->instagram,
         ]);
 
         // Lokatsiya saqlash
@@ -99,6 +111,12 @@ class RestaurantController extends Controller
             'latitude'    => 'sometimes|numeric',
             'longitude'   => 'sometimes|numeric',
             'address'     => 'nullable|string',
+            'cuisine_type' => 'nullable|string|max:100',
+            'country'      => 'nullable|string|max:100',
+            'city'         => 'nullable|string|max:100',
+            'price_range'  => 'nullable|in:$,$$,$$$',
+            'website'      => 'nullable|url|max:255',
+            'instagram'    => 'nullable|string|max:255',
         ]);
 
         // Yangi rasm yuklash
@@ -109,7 +127,8 @@ class RestaurantController extends Controller
             $restaurant->image_path = $request->file('image')->store('restaurants', 'public');
         }
 
-        $restaurant->update($request->only(['name', 'description', 'phone', 'image_path']));
+        $restaurant->update($request->only(['name', 'description', 'phone', 'image_path', 'cuisine_type', 'country', 'city',
+    'price_range', 'website', 'instagram']));
 
         // Lokatsiya yangilash
         if ($request->latitude && $request->longitude) {

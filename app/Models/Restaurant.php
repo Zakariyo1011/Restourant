@@ -16,10 +16,18 @@ class Restaurant extends Model
         'phone',
         'image_path',
         'is_active',
+        'cuisine_type',
+        'country',
+        'city',
+        'price_range',
+        'working_hours',
+        'website',
+        'instagram',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'working_hours' => 'array',
     ];
 
     public function owner()
