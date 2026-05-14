@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\AdminController;
 
 // Test
 Route::get('/test', function () {
-    return response()->json(['message' => 'API ishlayapti!']);
+    return response()->json(['message' => 'API ishlayapti!!!!!!']);
 });
 
 // Google OAuth
@@ -68,7 +68,7 @@ Route::get('/meta/cuisine-types', function () {
 Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $lat = $request->query('lat');
     $lng = $request->query('lng');
-    $radius = $request->query('radius', 10); // km
+    $radius = $request->query('radius', 50);
 
     if (!$lat || !$lng) {
         return response()->json(['message' => 'Koordinatalar kerak'], 400);
@@ -79,29 +79,19 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
         ->whereHas('location')
         ->get()
         ->map(function ($restaurant) use ($lat, $lng) {
-            $distance = haversine(
-                $lat, $lng,
-                $restaurant->location->latitude,
-                $restaurant->location->longitude
-            );
-            $restaurant->distance = round($distance, 1);
+            $R = 6371;
+            $dLat = deg2rad($restaurant->location->latitude - $lat);
+            $dLon = deg2rad($restaurant->location->longitude - $lng);
+            $a = sin($dLat/2) * sin($dLat/2) +
+                 cos(deg2rad($lat)) * cos(deg2rad($restaurant->location->latitude)) *
+                 sin($dLon/2) * sin($dLon/2);
+            $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+            $restaurant->distance = round($R * $c, 1);
             return $restaurant;
         })
-        ->filter(fn($r) => $r->distance <= request()->query('radius', 10))
+        ->filter(fn($r) => $r->distance <= $radius)
         ->sortBy('distance')
         ->values();
 
     return response()->json($restaurants);
 });
-
-// Haversine formula — ikki nuqta orasidagi masofa (km)
-function haversine($lat1, $lon1, $lat2, $lon2) {
-    $R = 6371;
-    $dLat = deg2rad($lat2 - $lat1);
-    $dLon = deg2rad($lon2 - $lon1);
-    $a = sin($dLat/2) * sin($dLat/2) +
-         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-         sin($dLon/2) * sin($dLon/2);
-    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-    return $R * $c;
-}
