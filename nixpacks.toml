@@ -2,7 +2,7 @@
 cmds = ["composer install --no-dev --optimize-autoloader"]
 
 [phases.deploy]
-cmds = ["php artisan migrate --force", "php artisan storage:link"]
+cmds = ["php artisan migrate --force", "php artisan db:seed --force", "php artisan storage:link"]
 
 [start]
 cmd = "php artisan serve --host=0.0.0.0 --port=8080"
