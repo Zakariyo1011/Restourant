@@ -61,3 +61,47 @@ Route::get('/meta/cuisine-types', function () {
         'price_ranges' => ['$', '$$', '$$$'],
     ]);
 });
+
+
+
+// Yaqin restoranlar (GPS bo'yicha)
+Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
+    $lat = $request->query('lat');
+    $lng = $request->query('lng');
+    $radius = $request->query('radius', 10); // km
+
+    if (!$lat || !$lng) {
+        return response()->json(['message' => 'Koordinatalar kerak'], 400);
+    }
+
+    $restaurants = \App\Models\Restaurant::with('location')
+        ->where('is_active', true)
+        ->whereHas('location')
+        ->get()
+        ->map(function ($restaurant) use ($lat, $lng) {
+            $distance = haversine(
+                $lat, $lng,
+                $restaurant->location->latitude,
+                $restaurant->location->longitude
+            );
+            $restaurant->distance = round($distance, 1);
+            return $restaurant;
+        })
+        ->filter(fn($r) => $r->distance <= request()->query('radius', 10))
+        ->sortBy('distance')
+        ->values();
+
+    return response()->json($restaurants);
+});
+
+// Haversine formula — ikki nuqta orasidagi masofa (km)
+function haversine($lat1, $lon1, $lat2, $lon2) {
+    $R = 6371;
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+    $a = sin($dLat/2) * sin($dLat/2) +
+         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+         sin($dLon/2) * sin($dLon/2);
+    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    return $R * $c;
+}
