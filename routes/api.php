@@ -95,3 +95,5 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
 
     return response()->json($restaurants);
 });
+
+//TESTLASH 
