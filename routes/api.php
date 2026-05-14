@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\AdminController;
 
 // Test
 Route::get('/test', function () {
-    return response()->json(['message' => 'API ishlayapti!!!']);
+    return response()->json(['message' => 'API ishlayapti!!!!!!']);
 });
 
 // Google OAuth
