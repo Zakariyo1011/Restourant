@@ -6,11 +6,27 @@ use App\Http\Controllers\Controller;
 use App\Models\Restaurant;
 use App\Models\Location;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use ImageKit\ImageKit;
 
 class RestaurantController extends Controller
 {
-    // Barcha active restoranlar (public)
+    private function uploadToImageKit($file)
+    {
+        $imageKit = new ImageKit(
+            env('IMAGEKIT_PUBLIC_KEY'),
+            env('IMAGEKIT_PRIVATE_KEY'),
+            env('IMAGEKIT_URL_ENDPOINT')
+        );
+
+        $result = $imageKit->uploadFile([
+            'file'     => base64_encode(file_get_contents($file->getRealPath())),
+            'fileName' => time() . '_' . $file->getClientOriginalName(),
+            'folder'   => '/restaurants',
+        ]);
+
+        return $result->success->url ?? null;
+    }
+
     public function index()
     {
         $restaurants = Restaurant::with('location')
@@ -21,7 +37,6 @@ class RestaurantController extends Controller
         return response()->json($restaurants);
     }
 
-    // Bitta restoran (public)
     public function show($id)
     {
         $restaurant = Restaurant::with('location')
@@ -31,7 +46,6 @@ class RestaurantController extends Controller
         return response()->json($restaurant);
     }
 
-    // Egasining o'z restorani
     public function myRestaurant(Request $request)
     {
         $restaurant = $request->user()->restaurant()->with('location')->first();
@@ -43,17 +57,16 @@ class RestaurantController extends Controller
         return response()->json($restaurant);
     }
 
-    // Restoran yaratish
     public function store(Request $request)
     {
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'phone'       => 'nullable|string|max:20',
-            'image'       => 'nullable|image|max:2048',
-            'latitude'    => 'required|numeric',
-            'longitude'   => 'required|numeric',
-            'address'     => 'nullable|string',
+            'name'         => 'required|string|max:255',
+            'description'  => 'nullable|string',
+            'phone'        => 'nullable|string|max:20',
+            'image'        => 'nullable|image|max:5120',
+            'latitude'     => 'required|numeric',
+            'longitude'    => 'required|numeric',
+            'address'      => 'nullable|string',
             'cuisine_type' => 'nullable|string|max:100',
             'country'      => 'nullable|string|max:100',
             'city'         => 'nullable|string|max:100',
@@ -62,19 +75,18 @@ class RestaurantController extends Controller
             'instagram'    => 'nullable|string|max:255',
         ]);
 
-        // Rasm yuklash
         $imagePath = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('restaurants', 'public');
+            $imagePath = $this->uploadToImageKit($request->file('image'));
         }
 
         $restaurant = Restaurant::create([
-            'user_id'     => $request->user()->id,
-            'name'        => $request->name,
-            'description' => $request->description,
-            'phone'       => $request->phone,
-            'image_path'  => $imagePath,
-            'is_active'   => false,
+            'user_id'      => $request->user()->id,
+            'name'         => $request->name,
+            'description'  => $request->description,
+            'phone'        => $request->phone,
+            'image_path'   => $imagePath,
+            'is_active'    => false,
             'cuisine_type' => $request->cuisine_type,
             'country'      => $request->country,
             'city'         => $request->city,
@@ -83,7 +95,6 @@ class RestaurantController extends Controller
             'instagram'    => $request->instagram,
         ]);
 
-        // Lokatsiya saqlash
         Location::create([
             'restaurant_id' => $restaurant->id,
             'latitude'      => $request->latitude,
@@ -94,7 +105,6 @@ class RestaurantController extends Controller
         return response()->json($restaurant->load('location'), 201);
     }
 
-    // Restoran yangilash
     public function update(Request $request)
     {
         $restaurant = $request->user()->restaurant;
@@ -104,13 +114,13 @@ class RestaurantController extends Controller
         }
 
         $request->validate([
-            'name'        => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'phone'       => 'nullable|string|max:20',
-            'image'       => 'nullable|image|max:2048',
-            'latitude'    => 'sometimes|numeric',
-            'longitude'   => 'sometimes|numeric',
-            'address'     => 'nullable|string',
+            'name'         => 'sometimes|string|max:255',
+            'description'  => 'nullable|string',
+            'phone'        => 'nullable|string|max:20',
+            'image'        => 'nullable|image|max:5120',
+            'latitude'     => 'sometimes|numeric',
+            'longitude'    => 'sometimes|numeric',
+            'address'      => 'nullable|string',
             'cuisine_type' => 'nullable|string|max:100',
             'country'      => 'nullable|string|max:100',
             'city'         => 'nullable|string|max:100',
@@ -119,18 +129,16 @@ class RestaurantController extends Controller
             'instagram'    => 'nullable|string|max:255',
         ]);
 
-        // Yangi rasm yuklash
         if ($request->hasFile('image')) {
-            if ($restaurant->image_path) {
-                Storage::disk('public')->delete($restaurant->image_path);
-            }
-            $restaurant->image_path = $request->file('image')->store('restaurants', 'public');
+            $restaurant->image_path = $this->uploadToImageKit($request->file('image'));
         }
 
-        $restaurant->update($request->only(['name', 'description', 'phone', 'image_path', 'cuisine_type', 'country', 'city',
-    'price_range', 'website', 'instagram']));
+        $restaurant->update($request->only([
+            'name', 'description', 'phone', 'image_path',
+            'cuisine_type', 'country', 'city',
+            'price_range', 'website', 'instagram'
+        ]));
 
-        // Lokatsiya yangilash
         if ($request->latitude && $request->longitude) {
             $restaurant->location()->updateOrCreate(
                 ['restaurant_id' => $restaurant->id],
@@ -145,32 +153,22 @@ class RestaurantController extends Controller
         return response()->json($restaurant->load('location'));
     }
 
-
-    // Restoran o'chirish
-public function destroy(Request $request)
-{
-    $restaurant = $request->user()->restaurant;
-    if (!$restaurant) {
-        return response()->json(['message' => 'Topilmadi'], 404);
+    public function destroy(Request $request)
+    {
+        $restaurant = $request->user()->restaurant;
+        if (!$restaurant) {
+            return response()->json(['message' => 'Topilmadi'], 404);
+        }
+        $restaurant->delete();
+        return response()->json(['message' => 'O\'chirildi']);
     }
-    if ($restaurant->image_path) {
-        Storage::disk('public')->delete($restaurant->image_path);
+
+    public function sendArija(Request $request)
+    {
+        $request->validate(['phone' => 'required|string']);
+        $user = $request->user();
+        $restaurant = $user->restaurant;
+        \Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
+        return response()->json(['message' => 'Ariza yuborildi']);
     }
-    $restaurant->delete();
-    return response()->json(['message' => 'O\'chirildi']);
 }
-
-// Arija yuborish (hozircha log, keyinroq Telegram)
-public function sendArija(Request $request)
-{
-    $request->validate(['phone' => 'required|string']);
-    $user = $request->user();
-    $restaurant = $user->restaurant;
-
-    \Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
-
-    return response()->json(['message' => 'Ariza yuborildi']);
-}
-    
-}
-
