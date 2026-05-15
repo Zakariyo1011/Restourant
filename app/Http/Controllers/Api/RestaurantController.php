@@ -25,20 +25,15 @@ class RestaurantController extends Controller
             'folder'   => '/restaurants',
         ]);
 
-        \Log::info('ImageKit full result: ' . print_r($result, true));
-
-        // Turli versiyalar uchun
-        if (!empty($result->success->url)) {
-            return $result->success->url;
-        }
-        if (!empty($result->url)) {
+        // Response object dan url olish
+        if (isset($result->url)) {
             return $result->url;
         }
-        if (is_array($result) && !empty($result['url'])) {
-            return $result['url'];
+        if (isset($result->success->url)) {
+            return $result->success->url;
         }
 
-        \Log::error('ImageKit no URL found: ' . print_r($result, true));
+        \Log::error('ImageKit URL topilmadi');
         return null;
 
     } catch (\Exception $e) {
