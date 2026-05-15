@@ -11,7 +11,8 @@ use ImageKit\ImageKit;
 class RestaurantController extends Controller
 {
     private function uploadToImageKit($file)
-    {
+{
+    try {
         $imageKit = new ImageKit(
             env('IMAGEKIT_PUBLIC_KEY'),
             env('IMAGEKIT_PRIVATE_KEY'),
@@ -24,8 +25,27 @@ class RestaurantController extends Controller
             'folder'   => '/restaurants',
         ]);
 
-        return $result->success->url ?? null;
+        \Log::info('ImageKit full result: ' . print_r($result, true));
+
+        // Turli versiyalar uchun
+        if (!empty($result->success->url)) {
+            return $result->success->url;
+        }
+        if (!empty($result->url)) {
+            return $result->url;
+        }
+        if (is_array($result) && !empty($result['url'])) {
+            return $result['url'];
+        }
+
+        \Log::error('ImageKit no URL found: ' . print_r($result, true));
+        return null;
+
+    } catch (\Exception $e) {
+        \Log::error('ImageKit exception: ' . $e->getMessage());
+        return null;
     }
+}
 
     public function index()
     {
