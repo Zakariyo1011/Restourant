@@ -7,44 +7,40 @@ use App\Models\Restaurant;
 use App\Models\Location;
 use Illuminate\Http\Request;
 use ImageKit\ImageKit;
-use Illuminate\Support\Facades\Log;
 
 class RestaurantController extends Controller
 {
     private function uploadToImageKit($file)
-    {
-        try {
-            $imageKit = new ImageKit(
-                env('IMAGEKIT_PUBLIC_KEY'),
-                env('IMAGEKIT_PRIVATE_KEY'),
-                env('IMAGEKIT_URL_ENDPOINT')
-            );
+{
+    try {
+        $imageKit = new ImageKit(
+            env('IMAGEKIT_PUBLIC_KEY'),
+            env('IMAGEKIT_PRIVATE_KEY'),
+            env('IMAGEKIT_URL_ENDPOINT')
+        );
 
-            $result = $imageKit->uploadFile([
-                'file'     => base64_encode(file_get_contents($file->getRealPath())),
-                'fileName' => time() . '_' . $file->getClientOriginalName(),
-                'folder'   => '/restaurants',
-            ]);
+        $result = $imageKit->uploadFile([
+            'file'     => base64_encode(file_get_contents($file->getRealPath())),
+            'fileName' => time() . '_' . $file->getClientOriginalName(),
+            'folder'   => '/restaurants',
+        ]);
 
-            // ImageKit SDK javobini xavfsiz tekshirish (Obyekt yoki Massiv ko'rinishida)
-            if (is_object($result) && isset($result->result->url)) {
-                return $result->result->url;
-            }
-            if (is_array($result) && isset($result['result']['url'])) {
-                return $result['result']['url'];
-            }
-            if (isset($result->url)) {
-                return $result->url;
-            }
-
-            Log::error('ImageKit URL topilmadi. Olingan natija: ' . json_encode($result));
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error('ImageKit exception: ' . $e->getMessage());
-            return null;
+        // Response object dan url olish
+        if (isset($result->url)) {
+            return $result->url;
         }
+        if (isset($result->success->url)) {
+            return $result->success->url;
+        }
+
+        \Log::error('ImageKit URL topilmadi');
+        return null;
+
+    } catch (\Exception $e) {
+        \Log::error('ImageKit exception: ' . $e->getMessage());
+        return null;
     }
+}
 
     public function index()
     {
@@ -132,14 +128,13 @@ class RestaurantController extends Controller
             return response()->json(['message' => 'Restoran topilmadi'], 404);
         }
 
-        // Validation yaxshilandi: agar biri kelsa, ikkinchisi ham majburiy bo'ladi
         $request->validate([
             'name'         => 'sometimes|string|max:255',
             'description'  => 'nullable|string',
             'phone'        => 'nullable|string|max:20',
             'image'        => 'nullable|image|max:5120',
-            'latitude'     => 'required_with:longitude|numeric',
-            'longitude'    => 'required_with:latitude|numeric',
+            'latitude'     => 'sometimes|numeric',
+            'longitude'    => 'sometimes|numeric',
             'address'      => 'nullable|string',
             'cuisine_type' => 'nullable|string|max:100',
             'country'      => 'nullable|string|max:100',
@@ -149,26 +144,17 @@ class RestaurantController extends Controller
             'instagram'    => 'nullable|string|max:255',
         ]);
 
-        // 1. Faqat kerakli matnli maydonlarni yangilaymiz (image_path bu ro'yxatdan olib tashlandi)
-        $restaurant->fill($request->only([
-            'name', 'description', 'phone',
+        if ($request->hasFile('image')) {
+            $restaurant->image_path = $this->uploadToImageKit($request->file('image'));
+        }
+
+        $restaurant->update($request->only([
+            'name', 'description', 'phone', 'image_path',
             'cuisine_type', 'country', 'city',
             'price_range', 'website', 'instagram'
         ]));
 
-        // 2. Agar yangi rasm yuklangan bo'lsa, uni alohida yozamiz
-        if ($request->hasFile('image')) {
-            $newImagePath = $this->uploadToImageKit($request->file('image'));
-            if ($newImagePath) {
-                $restaurant->image_path = $newImagePath;
-            }
-        }
-
-        // Ma'lumotlarni bazaga saqlaymiz
-        $restaurant->save();
-
-        // Location yangilanishi
-        if ($request->has('latitude') && $request->has('longitude')) {
+        if ($request->latitude && $request->longitude) {
             $restaurant->location()->updateOrCreate(
                 ['restaurant_id' => $restaurant->id],
                 [
@@ -197,7 +183,7 @@ class RestaurantController extends Controller
         $request->validate(['phone' => 'required|string']);
         $user = $request->user();
         $restaurant = $user->restaurant;
-        Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
+        \Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
         return response()->json(['message' => 'Ariza yuborildi']);
     }
 }
