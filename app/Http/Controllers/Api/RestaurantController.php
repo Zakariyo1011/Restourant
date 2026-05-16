@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Restaurant;
 use App\Models\Location;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use ImageKit\ImageKit;
 
 class RestaurantController extends Controller
@@ -25,23 +26,41 @@ class RestaurantController extends Controller
             'folder'   => '/restaurants',
         ]);
 
-        // $result object xususiyatlarini tekshirish
-        $arr = (array) $result;
-        foreach ($arr as $key => $val) {
-            if ($key === 'url' && !empty($val)) {
-                return $val;
+        Log::info('ImageKit Response: ' . json_encode($result));
+
+        // ImageKit response tekshirish
+        if (!$result) {
+            Log::error('ImageKit: Null response qaytdi');
+            return null;
+        }
+
+        // Birinchi usul: Direct URL property
+        if (property_exists($result, 'url') && !empty($result->url)) {
+            Log::info('ImageKit URL topildi (direct): ' . $result->url);
+            return $result->url;
+        }
+
+        // Ikkinchi usul: JSON konvertatsiya
+        $responseArray = is_object($result) ? json_decode(json_encode($result), true) : $result;
+        
+        if (is_array($responseArray)) {
+            if (!empty($responseArray['url'])) {
+                Log::info('ImageKit URL topildi (array): ' . $responseArray['url']);
+                return $responseArray['url'];
+            }
+            
+            // Chuqur qidiruv
+            if (!empty($responseArray['success']['url'])) {
+                Log::info('ImageKit URL topildi (nested): ' . $responseArray['success']['url']);
+                return $responseArray['success']['url'];
             }
         }
 
-        // Nested object
-        if (!empty($result->url)) return $result->url;
-        if (!empty($result->success->url)) return $result->success->url;
-
-        \Log::error('ImageKit URL topilmadi: ' . json_encode($arr));
+        Log::error('ImageKit URL topilmadi. Response: ' . json_encode($result));
         return null;
 
     } catch (\Exception $e) {
-        \Log::error('ImageKit exception: ' . $e->getMessage());
+        Log::error('ImageKit exception: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString());
         return null;
     }
 }
@@ -97,6 +116,7 @@ class RestaurantController extends Controller
         $imagePath = null;
         if ($request->hasFile('image')) {
             $imagePath = $this->uploadToImageKit($request->file('image'));
+            Log::info('Store: Rasm yuklanganidan keyin URL - ' . ($imagePath ?? 'NULL'));
         }
 
         $restaurant = Restaurant::create([
@@ -113,6 +133,8 @@ class RestaurantController extends Controller
             'website'      => $request->website,
             'instagram'    => $request->instagram,
         ]);
+
+        Log::info('Store: Restoran yaratildi - ID: ' . $restaurant->id . ', image_path: ' . ($restaurant->image_path ?? 'NULL'));
 
         Location::create([
             'restaurant_id' => $restaurant->id,
@@ -160,10 +182,14 @@ class RestaurantController extends Controller
         $url = $this->uploadToImageKit($request->file('image'));
         if ($url) {
             $restaurant->image_path = $url;
+            Log::info('Update: Yangi rasm URL - ' . $url);
+        } else {
+            Log::warning('Update: Rasm yuklash muvaffaqiyatsiz tugadi');
         }
     }
 
     $restaurant->save();
+    Log::info('Update: Restoran saqlandi - ID: ' . $restaurant->id . ', image_path: ' . ($restaurant->image_path ?? 'NULL'));
 
     if ($request->latitude && $request->longitude) {
         $restaurant->location()->updateOrCreate(
@@ -194,7 +220,7 @@ class RestaurantController extends Controller
         $request->validate(['phone' => 'required|string']);
         $user = $request->user();
         $restaurant = $user->restaurant;
-        \Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
+        Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
         return response()->json(['message' => 'Ariza yuborildi']);
     }
 }
