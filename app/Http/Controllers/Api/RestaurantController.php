@@ -177,7 +177,7 @@ class RestaurantController extends Controller
         'price_range', 'website', 'instagram'
     ]));
 
-    // Rasm alohida
+    // Rasm alohidaaa
     if ($request->hasFile('image')) {
         $url = $this->uploadToImageKit($request->file('image'));
         if ($url) {
