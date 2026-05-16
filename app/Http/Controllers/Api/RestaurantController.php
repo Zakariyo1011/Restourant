@@ -13,35 +13,31 @@ class RestaurantController extends Controller
    private function uploadToImageKit($file)
 {
     try {
-        $publicKey = env('IMAGEKIT_PUBLIC_KEY');
-        $privateKey = env('IMAGEKIT_PRIVATE_KEY');
-        $urlEndpoint = env('IMAGEKIT_URL_ENDPOINT');
+        $imageKit = new ImageKit(
+            env('IMAGEKIT_PUBLIC_KEY'),
+            env('IMAGEKIT_PRIVATE_KEY'),
+            env('IMAGEKIT_URL_ENDPOINT')
+        );
 
-        // cURL orqali to'g'ridan-to'g'ri API ga yuborish
-        $ch = curl_init();
-        
-        curl_setopt($ch, CURLOPT_URL, 'https://upload.imagekit.io/api/v1/files/upload');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_USERPWD, $privateKey . ':');
-        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+        $result = $imageKit->uploadFile([
             'file'     => base64_encode(file_get_contents($file->getRealPath())),
             'fileName' => time() . '_' . $file->getClientOriginalName(),
             'folder'   => '/restaurants',
         ]);
 
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        $data = json_decode($response, true);
-        
-        \Log::info('ImageKit cURL response: ' . $response);
-
-        if (!empty($data['url'])) {
-            return $data['url'];
+        // $result object xususiyatlarini tekshirish
+        $arr = (array) $result;
+        foreach ($arr as $key => $val) {
+            if ($key === 'url' && !empty($val)) {
+                return $val;
+            }
         }
 
-        \Log::error('ImageKit cURL no URL: ' . $response);
+        // Nested object
+        if (!empty($result->url)) return $result->url;
+        if (!empty($result->success->url)) return $result->success->url;
+
+        \Log::error('ImageKit URL topilmadi: ' . json_encode($arr));
         return null;
 
     } catch (\Exception $e) {
