@@ -10,7 +10,7 @@ use ImageKit\ImageKit;
 
 class RestaurantController extends Controller
 {
-    private function uploadToImageKit($file)
+   private function uploadToImageKit($file)
 {
     try {
         $imageKit = new ImageKit(
@@ -25,15 +25,19 @@ class RestaurantController extends Controller
             'folder'   => '/restaurants',
         ]);
 
-        // Response object dan url olish
-        if (isset($result->url)) {
-            return $result->url;
-        }
-        if (isset($result->success->url)) {
-            return $result->success->url;
+        // $result object xususiyatlarini tekshirish
+        $arr = (array) $result;
+        foreach ($arr as $key => $val) {
+            if ($key === 'url' && !empty($val)) {
+                return $val;
+            }
         }
 
-        \Log::error('ImageKit URL topilmadi');
+        // Nested object
+        if (!empty($result->url)) return $result->url;
+        if (!empty($result->success->url)) return $result->success->url;
+
+        \Log::error('ImageKit URL topilmadi: ' . json_encode($arr));
         return null;
 
     } catch (\Exception $e) {
@@ -121,52 +125,59 @@ class RestaurantController extends Controller
     }
 
     public function update(Request $request)
-    {
-        $restaurant = $request->user()->restaurant;
+{
+    $restaurant = $request->user()->restaurant;
 
-        if (!$restaurant) {
-            return response()->json(['message' => 'Restoran topilmadi'], 404);
-        }
-
-        $request->validate([
-            'name'         => 'sometimes|string|max:255',
-            'description'  => 'nullable|string',
-            'phone'        => 'nullable|string|max:20',
-            'image'        => 'nullable|image|max:5120',
-            'latitude'     => 'sometimes|numeric',
-            'longitude'    => 'sometimes|numeric',
-            'address'      => 'nullable|string',
-            'cuisine_type' => 'nullable|string|max:100',
-            'country'      => 'nullable|string|max:100',
-            'city'         => 'nullable|string|max:100',
-            'price_range'  => 'nullable|in:$,$$,$$$',
-            'website'      => 'nullable|url|max:255',
-            'instagram'    => 'nullable|string|max:255',
-        ]);
-
-        if ($request->hasFile('image')) {
-            $restaurant->image_path = $this->uploadToImageKit($request->file('image'));
-        }
-
-        $restaurant->update($request->only([
-            'name', 'description', 'phone', 'image_path',
-            'cuisine_type', 'country', 'city',
-            'price_range', 'website', 'instagram'
-        ]));
-
-        if ($request->latitude && $request->longitude) {
-            $restaurant->location()->updateOrCreate(
-                ['restaurant_id' => $restaurant->id],
-                [
-                    'latitude'  => $request->latitude,
-                    'longitude' => $request->longitude,
-                    'address'   => $request->address,
-                ]
-            );
-        }
-
-        return response()->json($restaurant->load('location'));
+    if (!$restaurant) {
+        return response()->json(['message' => 'Restoran topilmadi'], 404);
     }
+
+    $request->validate([
+        'name'         => 'sometimes|string|max:255',
+        'description'  => 'nullable|string',
+        'phone'        => 'nullable|string|max:20',
+        'image'        => 'nullable|image|max:5120',
+        'latitude'     => 'sometimes|numeric',
+        'longitude'    => 'sometimes|numeric',
+        'address'      => 'nullable|string',
+        'cuisine_type' => 'nullable|string|max:100',
+        'country'      => 'nullable|string|max:100',
+        'city'         => 'nullable|string|max:100',
+        'price_range'  => 'nullable|in:$,$$,$$$',
+        'website'      => 'nullable|url|max:255',
+        'instagram'    => 'nullable|string|max:255',
+    ]);
+
+    // Avval maydonlarni yangilaymiz
+    $restaurant->fill($request->only([
+        'name', 'description', 'phone',
+        'cuisine_type', 'country', 'city',
+        'price_range', 'website', 'instagram'
+    ]));
+
+    // Rasm alohida
+    if ($request->hasFile('image')) {
+        $url = $this->uploadToImageKit($request->file('image'));
+        if ($url) {
+            $restaurant->image_path = $url;
+        }
+    }
+
+    $restaurant->save();
+
+    if ($request->latitude && $request->longitude) {
+        $restaurant->location()->updateOrCreate(
+            ['restaurant_id' => $restaurant->id],
+            [
+                'latitude'  => $request->latitude,
+                'longitude' => $request->longitude,
+                'address'   => $request->address,
+            ]
+        );
+    }
+
+    return response()->json($restaurant->load('location'));
+}
 
     public function destroy(Request $request)
     {
