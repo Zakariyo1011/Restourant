@@ -7,63 +7,90 @@ use App\Models\Restaurant;
 use App\Models\Location;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use ImageKit\ImageKit;
 
 class RestaurantController extends Controller
 {
-   private function uploadToImageKit($file)
-{
-    try {
-        $imageKit = new ImageKit(
-            env('IMAGEKIT_PUBLIC_KEY'),
-            env('IMAGEKIT_PRIVATE_KEY'),
-            env('IMAGEKIT_URL_ENDPOINT')
-        );
+    private function uploadToImageKit($file): ?string
+    {
+        $privateKey = config('services.imagekit.private_key');
+        $publicKey = config('services.imagekit.public_key');
+        $urlEndpoint = config('services.imagekit.url_endpoint');
 
-        $result = $imageKit->uploadFile([
-            'file'     => base64_encode(file_get_contents($file->getRealPath())),
-            'fileName' => time() . '_' . $file->getClientOriginalName(),
-            'folder'   => '/restaurants',
-        ]);
-
-        Log::info('ImageKit Response: ' . json_encode($result));
-
-        // ImageKit response tekshirish
-        if (!$result) {
-            Log::error('ImageKit: Null response qaytdi');
+        if (empty($privateKey) || empty($publicKey) || empty($urlEndpoint)) {
+            Log::error('ImageKit: credentials yo\'q (Railway/.env da IMAGEKIT_* o\'zgaruvchilarni tekshiring)', [
+                'has_private_key' => !empty($privateKey),
+                'has_public_key' => !empty($publicKey),
+                'has_url_endpoint' => !empty($urlEndpoint),
+            ]);
             return null;
         }
 
-        // Birinchi usul: Direct URL property
-        if (property_exists($result, 'url') && !empty($result->url)) {
-            Log::info('ImageKit URL topildi (direct): ' . $result->url);
-            return $result->url;
+        $realPath = $file->getRealPath();
+        if (!$realPath || !is_readable($realPath)) {
+            Log::error('ImageKit: faylni o\'qib bo\'lmadi');
+            return null;
         }
 
-        // Ikkinchi usul: JSON konvertatsiya
-        $responseArray = is_object($result) ? json_decode(json_encode($result), true) : $result;
-        
-        if (is_array($responseArray)) {
-            if (!empty($responseArray['url'])) {
-                Log::info('ImageKit URL topildi (array): ' . $responseArray['url']);
-                return $responseArray['url'];
-            }
-            
-            // Chuqur qidiruv
-            if (!empty($responseArray['success']['url'])) {
-                Log::info('ImageKit URL topildi (nested): ' . $responseArray['success']['url']);
-                return $responseArray['success']['url'];
-            }
+        $fileContents = file_get_contents($realPath);
+        if ($fileContents === false) {
+            Log::error('ImageKit: fayl kontenti bo\'sh');
+            return null;
         }
 
-        Log::error('ImageKit URL topilmadi. Response: ' . json_encode($result));
-        return null;
+        $fileName = time() . '_' . preg_replace(
+            '/[^a-zA-Z0-9._-]/',
+            '_',
+            $file->getClientOriginalName()
+        );
 
-    } catch (\Exception $e) {
-        Log::error('ImageKit exception: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString());
+        $ch = curl_init('https://upload.imagekit.io/api/v1/files/upload');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_USERPWD => $privateKey . ':',
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_POSTFIELDS => [
+                'file' => base64_encode($fileContents),
+                'fileName' => $fileName,
+                'folder' => '/restaurants',
+                'useUniqueFileName' => 'true',
+            ],
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_CONNECTTIMEOUT => 15,
+        ]);
+
+        $responseBody = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($responseBody === false) {
+            Log::error('ImageKit cURL xatosi: ' . $curlError);
+            return null;
+        }
+
+        $data = json_decode($responseBody, true);
+        Log::info('ImageKit upload javobi', [
+            'http_code' => $httpCode,
+            'file_name' => $fileName,
+            'response' => $data,
+        ]);
+
+        if ($httpCode >= 200 && $httpCode < 300 && !empty($data['url'])) {
+            return $data['url'];
+        }
+
+        $errorMessage = is_array($data)
+            ? ($data['message'] ?? $data['error'] ?? json_encode($data))
+            : $responseBody;
+
+        Log::error('ImageKit yuklash muvaffaqiyatsiz', [
+            'http_code' => $httpCode,
+            'error' => $errorMessage,
+        ]);
+
         return null;
     }
-}
 
     public function index()
     {
