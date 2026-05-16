@@ -113,7 +113,7 @@ class RestaurantController extends Controller
 
     public function myRestaurant(Request $request)
     {
-        $restaurant = $request->user()->restaurant()->with('location')->first();
+        $restaurant = $request->user()->restaurant()->with('location')->latest('id')->first();
 
         if (!$restaurant) {
             return response()->json(['message' => 'Restoran topilmadi'], 404);
@@ -124,6 +124,12 @@ class RestaurantController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->restaurant()->exists()) {
+            return response()->json([
+                'message' => 'Sizda allaqachon restoran mavjud. Tahrirlash orqali yangilang.',
+            ], 409);
+        }
+
         $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string',
@@ -144,6 +150,11 @@ class RestaurantController extends Controller
         if ($request->hasFile('image')) {
             $imagePath = $this->uploadToImageKit($request->file('image'));
             Log::info('Store: Rasm yuklanganidan keyin URL - ' . ($imagePath ?? 'NULL'));
+            if (!$imagePath) {
+                return response()->json([
+                    'message' => 'Rasm ImageKit ga yuklanmadi. IMAGEKIT_* o\'zgaruvchilarni tekshiring.',
+                ], 422);
+            }
         }
 
         $restaurant = Restaurant::create([
@@ -204,15 +215,15 @@ class RestaurantController extends Controller
         'price_range', 'website', 'instagram'
     ]));
 
-    // Rasm alohidaaa
     if ($request->hasFile('image')) {
         $url = $this->uploadToImageKit($request->file('image'));
-        if ($url) {
-            $restaurant->image_path = $url;
-            Log::info('Update: Yangi rasm URL - ' . $url);
-        } else {
-            Log::warning('Update: Rasm yuklash muvaffaqiyatsiz tugadi');
+        if (!$url) {
+            return response()->json([
+                'message' => 'Rasm ImageKit ga yuklanmadi. IMAGEKIT_* o\'zgaruvchilarni tekshiring.',
+            ], 422);
         }
+        $restaurant->image_path = $url;
+        Log::info('Update: Yangi rasm URL - ' . $url);
     }
 
     $restaurant->save();
