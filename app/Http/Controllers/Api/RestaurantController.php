@@ -116,7 +116,7 @@ class RestaurantController extends Controller
         $restaurant = $request->user()->restaurant()->with('location')->latest('id')->first();
 
         if (!$restaurant) {
-            return response()->json(['message' => 'Restoran topilmadi'], 404);
+            return response()->json(['message' => __('messages.restaurant_not_found')], 404);
         }
 
         return response()->json($restaurant);
@@ -126,7 +126,7 @@ class RestaurantController extends Controller
     {
         if ($request->user()->restaurant()->exists()) {
             return response()->json([
-                'message' => 'Sizda allaqachon restoran mavjud. Tahrirlash orqali yangilang.',
+                'message' => __('messages.already_has_restaurant'),
             ], 409);
         }
 
@@ -152,7 +152,7 @@ class RestaurantController extends Controller
             Log::info('Store: Rasm yuklanganidan keyin URL - ' . ($imagePath ?? 'NULL'));
             if (!$imagePath) {
                 return response()->json([
-                    'message' => 'Rasm ImageKit ga yuklanmadi. IMAGEKIT_* o\'zgaruvchilarni tekshiring.',
+                    'message' => __('messages.image_upload_failed'),
                 ], 422);
             }
         }
@@ -189,7 +189,7 @@ class RestaurantController extends Controller
     $restaurant = $request->user()->restaurant;
 
     if (!$restaurant) {
-        return response()->json(['message' => 'Restoran topilmadi'], 404);
+        return response()->json(['message' => __('messages.restaurant_not_found')], 404);
     }
 
     $request->validate([
@@ -219,7 +219,7 @@ class RestaurantController extends Controller
         $url = $this->uploadToImageKit($request->file('image'));
         if (!$url) {
             return response()->json([
-                'message' => 'Rasm ImageKit ga yuklanmadi. IMAGEKIT_* o\'zgaruvchilarni tekshiring.',
+                'message' => __('messages.image_upload_failed'),
             ], 422);
         }
         $restaurant->image_path = $url;
@@ -247,7 +247,7 @@ class RestaurantController extends Controller
     {
         $restaurant = $request->user()->restaurant;
         if (!$restaurant) {
-            return response()->json(['message' => 'Topilmadi'], 404);
+            return response()->json(['message' => __('messages.not_found')], 404);
         }
         $restaurant->delete();
         return response()->json(['message' => 'O\'chirildi']);
@@ -259,6 +259,6 @@ class RestaurantController extends Controller
         $user = $request->user();
         $restaurant = $user->restaurant;
         Log::info("Yangi ariza: {$user->name}, tel: {$request->phone}, restoran: {$restaurant?->name}");
-        return response()->json(['message' => 'Ariza yuborildi']);
+        return response()->json(['message' => __('messages.application_sent')]);
     }
 }

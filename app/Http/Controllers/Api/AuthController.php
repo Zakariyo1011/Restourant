@@ -71,7 +71,7 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json(['message' => 'Logged out']);
+        return response()->json(['message' => __('messages.logged_out')]);
     }
 
     private function resolveFrontendUrl(?string $requested): string

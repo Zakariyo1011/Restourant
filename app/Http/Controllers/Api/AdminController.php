@@ -25,7 +25,7 @@ class AdminController extends Controller
         $restaurant->update(['is_active' => !$restaurant->is_active]);
 
         return response()->json([
-            'message'   => $restaurant->is_active ? 'Aktivlashtirildi' : 'Deaktivlashtirildi',
+            'message'   => $restaurant->is_active ? __('messages.activated') : __('messages.deactivated'),
             'restaurant' => $restaurant,
         ]);
     }

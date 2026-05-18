@@ -7,7 +7,21 @@ use App\Http\Controllers\Api\AdminController;
 
 // Test
 Route::get('/test', function () {
-    return response()->json(['message' => 'API ishlayapti!']);
+    return response()->json(['message' => __('messages.api_ok')]);
+});
+
+Route::get('/meta/locales', function () {
+    return response()->json([
+        'locales' => [
+            ['code' => 'en', 'name' => 'English', 'flag' => '🇬🇧'],
+            ['code' => 'ru', 'name' => 'Русский', 'flag' => '🇷🇺'],
+            ['code' => 'uz', 'name' => "O'zbek", 'flag' => '🇺🇿'],
+            ['code' => 'kk', 'name' => 'Қазақша', 'flag' => '🇰🇿'],
+            ['code' => 'ky', 'name' => 'Кыргызча', 'flag' => '🇰🇬'],
+            ['code' => 'tg', 'name' => 'Тоҷикӣ', 'flag' => '🇹🇯'],
+        ],
+        'current' => app()->getLocale(),
+    ]);
 });
 
 // Google OAuth
@@ -21,7 +35,7 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $radius = $request->query('radius', 50);
 
     if (!$lat || !$lng) {
-        return response()->json(['message' => 'Koordinatalar kerak'], 400);
+        return response()->json(['message' => __('messages.coordinates_required')], 400);
     }
 
     $restaurants = \App\Models\Restaurant::with('location')
@@ -52,21 +66,7 @@ Route::get('/restaurants/{id}', [RestaurantController::class, 'show']);
 // Statik ma'lumotlar
 Route::get('/meta/cuisine-types', function () {
     return response()->json([
-        'cuisine_types' => [
-            'uzbek'      => "O'zbek",
-            'tajik'      => 'Tojik',
-            'kazakh'     => 'Qozoq',
-            'kyrgyz'     => "Qirg'iz",
-            'turkish'    => 'Turk',
-            'arabic'     => 'Arab',
-            'persian'    => 'Fors',
-            'afghan'     => 'Afghan',
-            'georgian'   => 'Gruzin',
-            'russian'    => 'Rus',
-            'european'   => 'Yevropa',
-            'asian'      => 'Osiyo',
-            'mixed'      => 'Aralash',
-        ],
+        'cuisine_types' => __('cuisines'),
         'price_ranges' => ['$', '$$', '$$$'],
     ]);
 });
