@@ -125,4 +125,11 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
+    'allowed_frontend_urls' => array_values(array_filter(array_unique([
+        env('FRONTEND_URL', 'http://localhost:5173'),
+        'http://localhost:5173',
+        'https://restourant-front.vercel.app',
+        'https://restaurant-front.vercel.app',
+    ]))),
+
 ];
