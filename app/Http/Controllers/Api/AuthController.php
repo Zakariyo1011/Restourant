@@ -44,13 +44,13 @@ public function redirectToGoogle()
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
-        $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+        $frontendUrl = rtrim(config('app.frontend_url'), '/');
 
-        return redirect("{$frontendUrl}/auth/callback?token={$token}&active={$user->is_active}");
+        return redirect("{$frontendUrl}/auth/callback?token={$token}&active=" . ($user->is_active ? '1' : '0'));
 
     } catch (\Exception $e) {
         \Log::error('Google OAuth xato: ' . $e->getMessage());
-        return redirect(env('FRONTEND_URL') . '/login?error=' . urlencode($e->getMessage()));
+        return redirect(rtrim(config('app.frontend_url'), '/') . '/login?error=' . urlencode($e->getMessage()));
     }
 }
 
