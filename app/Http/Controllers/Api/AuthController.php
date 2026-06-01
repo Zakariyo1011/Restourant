@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -72,6 +73,19 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => __('messages.logged_out')]);
+    }
+
+    public function updateLocale(Request $request)
+    {
+        $request->validate([
+            'locale' => ['required', 'string', Rule::in(['en', 'ru', 'uz', 'kk', 'ky', 'tg'])],
+        ]);
+
+        $user = $request->user();
+        $user->locale = $request->locale;
+        $user->save();
+
+        return response()->json(['locale' => $user->locale]);
     }
 
     private function resolveFrontendUrl(?string $requested): string

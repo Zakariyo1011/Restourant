@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\RestaurantImage;
 
 class Restaurant extends Model
 {
@@ -33,6 +34,11 @@ class Restaurant extends Model
     public function owner()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function images()
+    {
+        return $this->hasMany(RestaurantImage::class);
     }
 
     public function location()

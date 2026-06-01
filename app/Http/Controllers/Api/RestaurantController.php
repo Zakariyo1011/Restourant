@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Restaurant;
 use App\Models\Location;
+use App\Models\RestaurantImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -99,7 +100,7 @@ class RestaurantController extends Controller
             ->latest()
             ->get();
 
-        return response()->json($restaurants);
+        return response()->json($restaurants->load('images'));
     }
 
     public function show($id)
@@ -108,7 +109,7 @@ class RestaurantController extends Controller
             ->where('is_active', true)
             ->findOrFail($id);
 
-        return response()->json($restaurant);
+        return response()->json($restaurant->load('images'));
     }
 
     public function myRestaurant(Request $request)
@@ -119,7 +120,26 @@ class RestaurantController extends Controller
             return response()->json(['message' => __('messages.restaurant_not_found')], 404);
         }
 
-        return response()->json($restaurant);
+        return response()->json($restaurant->load('images'));
+    }
+
+    private function saveRestaurantImages(Restaurant $restaurant, array $files): bool
+    {
+        foreach ($files as $file) {
+            $url = $this->uploadToImageKit($file);
+            if (!$url) {
+                return false;
+            }
+            RestaurantImage::create([
+                'restaurant_id' => $restaurant->id,
+                'url' => $url,
+            ]);
+            if (!$restaurant->image_path) {
+                $restaurant->image_path = $url;
+                $restaurant->save();
+            }
+        }
+        return true;
     }
 
     public function store(Request $request)
@@ -135,6 +155,8 @@ class RestaurantController extends Controller
             'description'  => 'nullable|string',
             'phone'        => 'nullable|string|max:20',
             'image'        => 'nullable|image|max:5120',
+            'images'       => 'nullable|array',
+            'images.*'     => 'image|max:5120',
             'latitude'     => 'required|numeric',
             'longitude'    => 'required|numeric',
             'address'      => 'nullable|string',
@@ -181,7 +203,15 @@ class RestaurantController extends Controller
             'address'       => $request->address,
         ]);
 
-        return response()->json($restaurant->load('location'), 201);
+        if ($request->hasFile('images')) {
+            if (!$this->saveRestaurantImages($restaurant, $request->file('images')) ) {
+                return response()->json([
+                    'message' => __('messages.image_upload_failed'),
+                ], 422);
+            }
+        }
+
+        return response()->json($restaurant->load(['location', 'images']), 201);
     }
 
     public function update(Request $request)
@@ -196,7 +226,9 @@ class RestaurantController extends Controller
         'name'         => 'sometimes|string|max:255',
         'description'  => 'nullable|string',
         'phone'        => 'nullable|string|max:20',
-        'image'        => 'nullable|image|max:5120',
+            'image'        => 'nullable|image|max:5120',
+            'images'       => 'nullable|array',
+            'images.*'     => 'image|max:5120',
         'latitude'     => 'sometimes|numeric',
         'longitude'    => 'sometimes|numeric',
         'address'      => 'nullable|string',
@@ -226,6 +258,14 @@ class RestaurantController extends Controller
         Log::info('Update: Yangi rasm URL - ' . $url);
     }
 
+    if ($request->hasFile('images')) {
+        if (!$this->saveRestaurantImages($restaurant, $request->file('images'))) {
+            return response()->json([
+                'message' => __('messages.image_upload_failed'),
+            ], 422);
+        }
+    }
+
     $restaurant->save();
     Log::info('Update: Restoran saqlandi - ID: ' . $restaurant->id . ', image_path: ' . ($restaurant->image_path ?? 'NULL'));
 
@@ -240,7 +280,7 @@ class RestaurantController extends Controller
         );
     }
 
-    return response()->json($restaurant->load('location'));
+    return response()->json($restaurant->load(['location', 'images']));
 }
 
     public function destroy(Request $request)
@@ -251,6 +291,17 @@ class RestaurantController extends Controller
         }
         $restaurant->delete();
         return response()->json(['message' => 'O\'chirildi']);
+    }
+
+    public function deleteImage(Request $request, RestaurantImage $image)
+    {
+        $restaurant = $request->user()->restaurant;
+        if (!$restaurant || $image->restaurant_id !== $restaurant->id) {
+            return response()->json(['message' => __('messages.not_found')], 404);
+        }
+
+        $image->delete();
+        return response()->json(['message' => __('messages.image_deleted')]);
     }
 
     public function sendArija(Request $request)

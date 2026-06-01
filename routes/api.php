@@ -79,7 +79,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-restaurant', [RestaurantController::class, 'myRestaurant']);
     Route::post('/my-restaurant', [RestaurantController::class, 'store']);
     Route::post('/my-restaurant/update', [RestaurantController::class, 'update']);
+    Route::delete('/my-restaurant/images/{image}', [RestaurantController::class, 'deleteImage']);
     Route::delete('/my-restaurant', [RestaurantController::class, 'destroy']);
+    Route::post('/me/locale', [AuthController::class, 'updateLocale']);
     Route::post('/send-arija', [RestaurantController::class, 'sendArija']);
 });
 

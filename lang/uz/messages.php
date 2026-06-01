@@ -6,6 +6,7 @@ return [
     'already_has_restaurant' => 'Sizda allaqachon restoran mavjud. Tahrirlash orqali yangilang.',
     'image_upload_failed' => 'Rasm ImageKit ga yuklanmadi. IMAGEKIT_* o\'zgaruvchilarni tekshiring.',
     'deleted' => 'O\'chirildi',
+    'image_deleted' => 'Rasm muvaffaqiyatli o\'chirildi.',
     'not_found' => 'Topilmadi',
     'application_sent' => 'Ariza yuborildi',
     'coordinates_required' => 'Koordinatalar kerak',

@@ -7,6 +7,7 @@ return [
     'image_upload_failed' => 'Image upload to ImageKit failed. Check IMAGEKIT_* variables.',
     'deleted' => 'Deleted',
     'not_found' => 'Not found',
+        'image_deleted' => 'Image deleted successfully.',
     'application_sent' => 'Application submitted',
     'coordinates_required' => 'Coordinates are required',
     'activated' => 'Activated',

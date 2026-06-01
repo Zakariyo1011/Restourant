@@ -6,6 +6,7 @@ return [
     'already_has_restaurant' => 'Сізде ресторан бар. Өңдеу арқылы жаңартыңыз.',
     'image_upload_failed' => 'Сурет ImageKit-ке жүктелмеді. IMAGEKIT_* тексеріңіз.',
     'deleted' => 'Жойылды',
+        'image_deleted' => 'Сурет сәтті өшірілді.',
     'not_found' => 'Табылмады',
     'application_sent' => 'Өтініш жіберілді',
     'coordinates_required' => 'Координаттар қажет',

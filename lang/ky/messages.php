@@ -6,6 +6,7 @@ return [
     'already_has_restaurant' => 'Сизде ресторан бар. Оңдоо аркылуу жаңыртыңыз.',
     'image_upload_failed' => 'Сүрөт ImageKitке жүктөлбөдү. IMAGEKIT_* текшериңиз.',
     'deleted' => 'Өчүрүлдү',
+        'image_deleted' => 'Сүрөт ийгиликтүү өчүрүлдү.',
     'not_found' => 'Табылган жок',
     'application_sent' => 'Арыз жөнөтүлдү',
     'coordinates_required' => 'Координаттар талап кылынат',

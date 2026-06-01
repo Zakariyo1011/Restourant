@@ -6,6 +6,7 @@ return [
     'already_has_restaurant' => 'У вас уже есть ресторан. Используйте редактирование.',
     'image_upload_failed' => 'Не удалось загрузить изображение в ImageKit. Проверьте IMAGEKIT_*.',
     'deleted' => 'Удалено',
+    'image_deleted' => 'Изображение успешно удалено.',
     'not_found' => 'Не найдено',
     'application_sent' => 'Заявка отправлена',
     'coordinates_required' => 'Требуются координаты',
