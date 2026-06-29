@@ -28,7 +28,7 @@ Route::get('/meta/locales', function () {
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle']);
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
 
-// Public restoranlar — nearby AVVAL bo'lishi shart!
+// Public restoranlar — nearby AVVAL bo'lishi sha
 Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $lat = $request->query('lat');
     $lng = $request->query('lng');
