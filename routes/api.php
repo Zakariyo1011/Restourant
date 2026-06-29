@@ -89,4 +89,5 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/admin/restaurants', [AdminController::class, 'restaurants']);
     Route::patch('/admin/restaurants/{restaurant}/toggle', [AdminController::class, 'toggleActive']);
+    Route::post('/admin/import-google-places', [AdminController::class, 'importGooglePlaces']);
 });

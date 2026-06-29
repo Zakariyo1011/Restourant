@@ -24,6 +24,7 @@ class Restaurant extends Model
         'working_hours',
         'website',
         'instagram',
+        'google_place_id',
     ];
 
     protected $casts = [
