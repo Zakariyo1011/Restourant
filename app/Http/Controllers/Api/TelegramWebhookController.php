@@ -83,13 +83,13 @@ class TelegramWebhookController extends Controller
     {
         $this->sendText(
             $chatId,
-            '🍽️ <b>Restourant botiga xush kelibsiz!</b>\n\n'
-                . 'Men sizga yaqin atrofdagi eng mos restoranlarni topib beraman.\n\n'
-                . '⚡ <b>Qanday ishlaydi?</b>\n'
-                . '1) <b>📍 Joylashuv yuborish</b> tugmasini bosing\n'
-                . '2) Joylashuvingizni yuboring\n'
-                . '3) Eng yaqin <b>5 ta restoran</b>ni oling\n\n'
-                . 'Boshlashga tayyormisiz? 🚀',
+            "🍽️ <b>Restourant botiga xush kelibsiz!</b>\n\n"
+                . "Men sizga yaqin atrofdagi eng mos restoranlarni topib beraman.\n\n"
+                . "⚡ <b>Qanday ishlaydi?</b>\n"
+                . "1) <b>📍 Joylashuv yuborish</b> tugmasini bosing\n"
+                . "2) Joylashuvingizni yuboring\n"
+                . "3) Eng yaqin <b>5 ta restoran</b>ni oling\n\n"
+                . "Boshlashga tayyormisiz? 🚀",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
