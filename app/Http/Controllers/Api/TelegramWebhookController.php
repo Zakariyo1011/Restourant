@@ -101,11 +101,11 @@ class TelegramWebhookController extends Controller
     {
         $this->sendText(
             $chatId,
-            '❓ <b>Yordam</b>\n\n'
-                . '• <b>📍 Joylashuv yuborish</b> — asosiy qidiruv\n'
-                . '• <b>/menu</b> — bosh menyu\n'
-                . '• <b>/about</b> — bot haqida\n\n'
-                . 'Agar lokatsiya yubormasangiz restoranlarni aniqlab bo‘lmaydi.',
+            "❓ <b>Yordam</b>\n\n"
+                . "• <b>📍 Joylashuv yuborish</b> — asosiy qidiruv\n"
+                . "• <b>/menu</b> — bosh menyu\n"
+                . "• <b>/about</b> — bot haqida\n\n"
+                . "Agar lokatsiya yubormasangiz restoranlarni aniqlab bo'lmaydi.",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -117,11 +117,11 @@ class TelegramWebhookController extends Controller
     {
         $this->sendText(
             $chatId,
-            '📋 <b>Asosiy menyu</b>\n\n'
-                . '• <b>📍 Joylashuv yuborish</b> — yaqin restoranlarni topish\n'
-                . '• <b>❓ Yordam</b> — foydalanish yo‘riqnomasi\n'
-                . '• <b>ℹ️ Bot haqida</b> — loyiha haqida ma’lumot\n\n'
-                . 'Davom etish uchun lokatsiyangizni yuboring 👇',
+            "📋 <b>Asosiy menyu</b>\n\n"
+                . "• <b>📍 Joylashuv yuborish</b> — yaqin restoranlarni topish\n"
+                . "• <b>❓ Yordam</b> — foydalanish yo'riqnomasi\n"
+                . "• <b>ℹ️ Bot haqida</b> — loyiha haqida ma'lumot\n\n"
+                . "Davom etish uchun lokatsiyangizni yuboring 👇",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -133,10 +133,10 @@ class TelegramWebhookController extends Controller
     {
         $this->sendText(
             $chatId,
-            'ℹ️ <b>Bot haqida</b>\n\n'
-                . 'Ushbu bot siz yuborgan joylashuv asosida restoranlarni masofa bo‘yicha topadi.\n'
-                . 'Ma’lumotlar Restourant platformasi API dan olinadi.\n\n'
-                . 'Sifatli tavsiyalar uchun lokatsiyani aniq yuboring 📍',
+            "ℹ️ <b>Bot haqida</b>\n\n"
+                . "Ushbu bot siz yuborgan joylashuv asosida restoranlarni masofa bo'yicha topadi.\n"
+                . "Ma'lumotlar Restourant platformasi API dan olinadi.\n\n"
+                . "Sifatli tavsiyalar uchun lokatsiyani aniq yuboring 📍",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
