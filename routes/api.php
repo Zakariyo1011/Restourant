@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RestaurantController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\TelegramWebhookController;
 
 // Test
 Route::get('/test', function () {
@@ -24,21 +25,28 @@ Route::get('/meta/locales', function () {
     ]);
 });
 
+Route::post('/telegram/webhook', TelegramWebhookController::class);
+
 // Google OAuth
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle']);
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
 
 // Public restoranlar — nearby AVVAL bo'lishi sha
 Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
-    $lat = $request->query('lat');
-    $lng = $request->query('lng');
-    $radius = $request->query('radius', 50);
+    $validated = validator($request->all(), [
+        'lat' => 'required|numeric|between:-90,90',
+        'lng' => 'required|numeric|between:-180,180',
+        'radius' => 'nullable|numeric|min:0.1|max:200',
+        'limit' => 'nullable|integer|min:1|max:20',
+    ])->validate();
 
-    if (!$lat || !$lng) {
-        return response()->json(['message' => __('messages.coordinates_required')], 400);
-    }
+    $lat = (float) $validated['lat'];
+    $lng = (float) $validated['lng'];
+    $radius = isset($validated['radius']) ? (float) $validated['radius'] : 50.0;
+    $limit = isset($validated['limit']) ? (int) $validated['limit'] : 5;
 
-    $restaurants = \App\Models\Restaurant::with('location')
+    $restaurants = \App\Models\Restaurant::query()
+        ->with('location')
         ->where('is_active', true)
         ->whereHas('location')
         ->get()
@@ -50,14 +58,39 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
                  cos(deg2rad($lat)) * cos(deg2rad($restaurant->location->latitude)) *
                  sin($dLon/2) * sin($dLon/2);
             $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-            $restaurant->distance = round($R * $c, 1);
-            return $restaurant;
+            $distance = round($R * $c, 1);
+
+            return [
+                'id' => $restaurant->id,
+                'name' => $restaurant->name,
+                'address' => $restaurant->location?->address,
+                'phone' => $restaurant->phone,
+                'city' => $restaurant->city,
+                'cuisine_type' => $restaurant->cuisine_type,
+                'price_range' => $restaurant->price_range,
+                'distance' => $distance,
+                'location' => [
+                    'latitude' => (float) $restaurant->location->latitude,
+                    'longitude' => (float) $restaurant->location->longitude,
+                    'address' => $restaurant->location?->address,
+                ],
+            ];
         })
-        ->filter(fn($r) => $r->distance <= $radius)
+        ->filter(fn($r) => $r['distance'] <= $radius)
         ->sortBy('distance')
+        ->take($limit)
         ->values();
 
-    return response()->json($restaurants);
+    return response()->json([
+        'data' => $restaurants,
+        'meta' => [
+            'lat' => $lat,
+            'lng' => $lng,
+            'radius' => $radius,
+            'limit' => $limit,
+            'count' => $restaurants->count(),
+        ],
+    ]);
 });
 
 Route::get('/restaurants', [RestaurantController::class, 'index']);
