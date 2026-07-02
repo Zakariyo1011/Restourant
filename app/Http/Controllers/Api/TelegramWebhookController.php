@@ -28,6 +28,7 @@ class TelegramWebhookController extends Controller
         }
 
         $text = trim((string) data_get($message, 'text', ''));
+        $normalizedText = mb_strtolower($text);
         $location = data_get($message, 'location');
 
         if ($location) {
@@ -40,8 +41,13 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        if ($text === '/start' || $text === '📋 Menyu') {
+        if ($text === '/start') {
             $this->sendWelcomeMessage((int) $chatId);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($text === '/menu' || $text === '📋 Menyu') {
+            $this->sendMenuMessage((int) $chatId);
             return response()->json(['ok' => true]);
         }
 
@@ -55,9 +61,15 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
+        if (in_array($normalizedText, ['salom', 'assalomu alaykum', 'hello', 'hi'], true)) {
+            $this->sendWelcomeMessage((int) $chatId);
+            return response()->json(['ok' => true]);
+        }
+
         $this->sendText(
             (int) $chatId,
-            'Iltimos, pastdagi 📍 tugma orqali joylashuvingizni yuboring yoki ❓ Yordam ni bosing.',
+            '🤖 Xabarni tushunmadim.\n\n'
+                . 'Iltimos, <b>📍 Joylashuv yuborish</b> tugmasini bosing yoki <b>📋 Menyu</b>ni oching.',
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -71,11 +83,13 @@ class TelegramWebhookController extends Controller
     {
         $this->sendText(
             $chatId,
-            '🍽️ <b>Restoran Finder botiga xush kelibsiz!</b>\n\n'
-                . 'Yaqiningizdagi eng yaxshi restoranlarni topib beraman.\n\n'
+            '🍽️ <b>Restourant botiga xush kelibsiz!</b>\n\n'
+                . 'Men sizga yaqin atrofdagi eng mos restoranlarni topib beraman.\n\n'
+                . '⚡ <b>Qanday ishlaydi?</b>\n'
                 . '1) <b>📍 Joylashuv yuborish</b> tugmasini bosing\n'
                 . '2) Joylashuvingizni yuboring\n'
-                . '3) Sizga eng yaqin <b>5 ta restoran</b> ro‘yxatini chiqaraman ✅',
+                . '3) Eng yaqin <b>5 ta restoran</b>ni oling\n\n'
+                . 'Boshlashga tayyormisiz? 🚀',
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -88,9 +102,26 @@ class TelegramWebhookController extends Controller
         $this->sendText(
             $chatId,
             '❓ <b>Yordam</b>\n\n'
-                . '• <b>📍 Joylashuv yuborish</b> tugmasini bosing\n'
-                . '• Joylashuvingizni yuboring\n'
-                . '• Men sizga eng yaqin 5 ta restoran ro‘yxatini chiqaraman',
+                . '• <b>📍 Joylashuv yuborish</b> — asosiy qidiruv\n'
+                . '• <b>/menu</b> — bosh menyu\n'
+                . '• <b>/about</b> — bot haqida\n\n'
+                . 'Agar lokatsiya yubormasangiz restoranlarni aniqlab bo‘lmaydi.',
+            [
+                'parse_mode' => 'HTML',
+                'reply_markup' => $this->keyboardMarkup(),
+            ]
+        );
+    }
+
+    private function sendMenuMessage(int $chatId): void
+    {
+        $this->sendText(
+            $chatId,
+            '📋 <b>Asosiy menyu</b>\n\n'
+                . '• <b>📍 Joylashuv yuborish</b> — yaqin restoranlarni topish\n'
+                . '• <b>❓ Yordam</b> — foydalanish yo‘riqnomasi\n'
+                . '• <b>ℹ️ Bot haqida</b> — loyiha haqida ma’lumot\n\n'
+                . 'Davom etish uchun lokatsiyangizni yuboring 👇',
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -104,7 +135,8 @@ class TelegramWebhookController extends Controller
             $chatId,
             'ℹ️ <b>Bot haqida</b>\n\n'
                 . 'Ushbu bot siz yuborgan joylashuv asosida restoranlarni masofa bo‘yicha topadi.\n'
-                . 'Ma’lumotlar Restourant platformasi API dan olinadi.',
+                . 'Ma’lumotlar Restourant platformasi API dan olinadi.\n\n'
+                . 'Sifatli tavsiyalar uchun lokatsiyani aniq yuboring 📍',
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -133,6 +165,8 @@ class TelegramWebhookController extends Controller
                     'name' => $restaurant->name,
                     'address' => $restaurant->location?->address,
                     'distance' => $distance,
+                    'latitude' => (float) $restaurant->location->latitude,
+                    'longitude' => (float) $restaurant->location->longitude,
                 ];
             })
             ->sortBy('distance')
@@ -140,20 +174,32 @@ class TelegramWebhookController extends Controller
             ->values();
 
         if ($restaurants->isEmpty()) {
-            $this->sendText($chatId, 'Yaqin atrofda restoran topilmadi.', [
-                'reply_markup' => $this->keyboardMarkup(),
-            ]);
+            $this->sendText(
+                $chatId,
+                '😕 Yaqin atrofda restoran topilmadi.\n\nBiroz boshqa nuqtadan lokatsiya yuborib ko‘ring.',
+                [
+                    'reply_markup' => $this->keyboardMarkup(),
+                ]
+            );
             return;
         }
 
         $lines = $restaurants->map(function ($restaurant, $index) {
+            $rankEmoji = match ($index) {
+                0 => '🥇',
+                1 => '🥈',
+                2 => '🥉',
+                default => '•',
+            };
             $address = !empty($restaurant['address']) ? "\n   📍 {$restaurant['address']}" : '';
-            return ($index + 1) . ") {$restaurant['name']} — {$restaurant['distance']} km{$address}";
+            $mapsUrl = "https://maps.google.com/?q={$restaurant['latitude']},{$restaurant['longitude']}";
+            $mapPart = "\n   🧭 <a href=\"{$mapsUrl}\">Xaritada ko‘rish</a>";
+            return "{$rankEmoji} " . ($index + 1) . ") {$restaurant['name']} — {$restaurant['distance']} km{$address}{$mapPart}";
         })->implode("\n");
 
         $this->sendText(
             $chatId,
-            "📌 <b>Sizga eng yaqin restoranlar:</b>\n\n{$lines}\n\nYana qidirish uchun joylashuvingizni qayta yuboring.",
+            "📌 <b>Sizga eng yaqin restoranlar:</b>\n\n{$lines}\n\nYana qidirish uchun joylashuvingizni qayta yuboring ✅",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
@@ -191,6 +237,9 @@ class TelegramWebhookController extends Controller
                         'text' => '📍 Joylashuv yuborish',
                         'request_location' => true,
                     ],
+                ],
+                [
+                    ['text' => '📋 Menyu'],
                 ],
                 [
                     ['text' => '❓ Yordam'],
