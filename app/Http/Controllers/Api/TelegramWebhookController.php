@@ -86,9 +86,8 @@ class TelegramWebhookController extends Controller
             "🍽️ <b>Restourant botiga xush kelibsiz!</b>\n\n"
                 . "Men sizga yaqin atrofdagi eng mos restoranlarni topib beraman.\n\n"
                 . "⚡ <b>Qanday ishlaydi?</b>\n"
-                . "1) <b>📍 Joylashuv yuborish</b> tugmasini bosing\n"
-                . "2) Joylashuvingizni yuboring\n"
-                . "3) Eng yaqin <b>5 ta restoran</b>ni oling\n\n"
+                . "📱 <b>Telefon:</b> <b>📍 Joylashuv yuborish</b> tugmasini bosing\n"
+                . "💻 <b>Mac / Desktop:</b> <b>📎 → Location</b> tugmasini bosing\n\n"
                 . "Boshlashga tayyormisiz? 🚀",
             [
                 'parse_mode' => 'HTML',
@@ -102,10 +101,12 @@ class TelegramWebhookController extends Controller
         $this->sendText(
             $chatId,
             "❓ <b>Yordam</b>\n\n"
-                . "• <b>📍 Joylashuv yuborish</b> — asosiy qidiruv\n"
+                . "📱 <b>Telefon:</b>\n"
+                . "Pastdagi <b>📍 Joylashuv yuborish</b> tugmasini bosing\n\n"
+                . "💻 <b>Mac / Desktop:</b>\n"
+                . "Chat pastidagi <b>📎 ikonkasi → Location</b> ni tanlang\n\n"
                 . "• <b>/menu</b> — bosh menyu\n"
-                . "• <b>/about</b> — bot haqida\n\n"
-                . "Agar lokatsiya yubormasangiz restoranlarni aniqlab bo'lmaydi.",
+                . "• <b>/about</b> — bot haqida",
             [
                 'parse_mode' => 'HTML',
                 'reply_markup' => $this->keyboardMarkup(),
