@@ -10,6 +10,7 @@ export interface Restaurant {
     address: string;
     location: Location;
     distance: number;
+    cuisine_type?: string;
 }
 
 export interface User {
@@ -18,4 +19,21 @@ export interface User {
     lastName?: string;
     username?: string;
     location?: Location;
+    language?: string;
+    foodType?: string;
 }
+
+export interface Language {
+    code: string;
+    name: string;
+    native_name: string;
+    flag: string;
+}
+
+export interface FoodType {
+    id: number;
+    slug: string;
+    name: string;
+}
+
+export type LanguageCode = 'en' | 'ru' | 'uz' | 'kk' | 'ky' | 'tg' | 'tr';

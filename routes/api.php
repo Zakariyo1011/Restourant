@@ -5,11 +5,17 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RestaurantController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\Api\LanguageController;
 
 // Test
 Route::get('/test', function () {
     return response()->json(['message' => __('messages.api_ok')]);
 });
+
+// Languages
+Route::get('/languages', [LanguageController::class, 'index']);
+Route::get('/food-types', [LanguageController::class, 'getFoodTypes']);
+Route::get('/food-types/{languageCode}', [LanguageController::class, 'getFoodTypesByLanguage']);
 
 Route::get('/meta/locales', function () {
     return response()->json([
@@ -20,6 +26,7 @@ Route::get('/meta/locales', function () {
             ['code' => 'kk', 'name' => 'Қазақша', 'flag' => '🇰🇿'],
             ['code' => 'ky', 'name' => 'Кыргызча', 'flag' => '🇰🇬'],
             ['code' => 'tg', 'name' => 'Тоҷикӣ', 'flag' => '🇹🇯'],
+            ['code' => 'tr', 'name' => 'Turkish', 'flag' => '🇹🇷'],
         ],
         'current' => app()->getLocale(),
     ]);

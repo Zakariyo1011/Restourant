@@ -1,13 +1,23 @@
 import { Context } from 'telegraf';
 import { mainKeyboard } from '../keyboards/main.keyboard';
+import { languageHandler } from './language.handler';
 
-export const startHandler = (ctx: Context) => {
-    return ctx.replyWithHTML(
-        '🍽️ <b>Restoran Finder botiga xush kelibsiz!</b>\n\n' +
-        'Yaqiningizdagi eng yaxshi restoranlarni topib beraman.\n\n' +
-        '1) Pastdagi <b>📍 Joylashuv yuborish</b> tugmasini bosing\n' +
-        '2) Joylashuvingizni yuboring\n' +
-        '3) Sizga eng yaqin <b>5 ta restoran</b> ro‘yxatini chiqaraman ✅',
+export const startHandler = async (ctx: Context) => {
+    const messages = {
+        en: '🍽️ Welcome to Restaurant Finder!\n\n1️⃣ Select your language\n2️⃣ Choose food type\n3️⃣ Share your location\n4️⃣ Get nearby restaurants!',
+        ru: '🍽️ Добро пожаловать в Restaurant Finder!\n\n1️⃣ Выберите язык\n2️⃣ Выберите тип кухни\n3️⃣ Поделитесь местоположением\n4️⃣ Получите ближайшие рестораны!',
+        uz: '🍽️ Restaurant Finder-ga xush kelibsiz!\n\n1️⃣ Tilni tanlang\n2️⃣ Ovqat turini tanlang\n3️⃣ Joylashuvingizni ulashing\n4️⃣ Yaqin restoranlarni oling!',
+        kk: '🍽️ Restaurant Finder-ге қош келдіңіз!\n\n1️⃣ Тіл таңдаңыз\n2️⃣ Тағам түрін таңдаңыз\n3️⃣ Орналасқан жерін бөлісіңіз\n4️⃣ Жақын ресторандарды табыңыз!',
+        ky: '🍽️ Restaurant Finder-ге кош келдиңиз!\n\n1️⃣ Тил тандаңыз\n2️⃣ Тамак түрүн тандаңыз\n3️⃣ Жайгашкан жеринизди бөлүшүңүз\n4️⃣ Жакын рестораны табыңыз!',
+        tg: '🍽️ Ба Restaurant Finder хуш омадед!\n\n1️⃣ Забонро интихоб кунед\n2️⃣ Навъи хӯрокро интихоб кунед\n3️⃣ Мамлакати худро бугузорӣ кунед\n4️⃣ Рестораниҳои наздик ёбед!',
+        tr: '🍽️ Restaurant Finder\'a hoş geldiniz!\n\n1️⃣ Dil seçin\n2️⃣ Yemek türünü seçin\n3️⃣ Konumunuzu paylaşın\n4️⃣ Yakındaki restoranları bulun!',
+    };
+
+    await ctx.replyWithHTML(
+        messages.en,
         mainKeyboard(),
     );
+    
+    // Auto-start language selection
+    await languageHandler(ctx);
 };
