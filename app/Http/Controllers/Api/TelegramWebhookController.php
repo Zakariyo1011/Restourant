@@ -80,7 +80,14 @@ class TelegramWebhookController extends Controller
                 if ($foodType) {
                     $state['food_type'] = $foodType->slug;
                     $this->setState($chatId, $state);
-                    $this->sendReadyForLocationMessage($chatId, $state['language']);
+                    $this->sendReadyForLocationMessage($chatId, $state['language'], $text);
+                    return response()->json(['ok' => true]);
+                }
+
+                if (!str_starts_with($text, '/')) {
+                    $state['food_type'] = $text;
+                    $this->setState($chatId, $state);
+                    $this->sendReadyForLocationMessage($chatId, $state['language'], $text);
                     return response()->json(['ok' => true]);
                 }
             }
@@ -150,10 +157,16 @@ class TelegramWebhookController extends Controller
         ]);
     }
 
-    private function sendReadyForLocationMessage(int $chatId, string $lang): void
+    private function sendReadyForLocationMessage(int $chatId, string $lang, ?string $foodLabel = null): void
     {
         $messages = $this->messages($lang);
-        $this->sendText($chatId, $messages['ready_for_location'], [
+
+        $text = $messages['ready_for_location'];
+        if ($foodLabel && trim($foodLabel) !== '') {
+            $text .= "\n\n" . ($messages['selected_food'] ?? '🍽️ Tanlangan ovqat turi: ') . "<b>" . e($foodLabel) . "</b>";
+        }
+
+        $this->sendText($chatId, $text, [
             'parse_mode' => 'HTML',
             'reply_markup' => $this->mainKeyboardMarkup($lang),
         ]);
@@ -370,8 +383,9 @@ class TelegramWebhookController extends Controller
             'en' => [
                 'welcome' => "🍽️ <b>Welcome!</b>\n\n1) Select language\n2) Select food type\n3) Share location",
                 'choose_language' => '🌐 <b>Select language:</b>',
-                'choose_food_type' => '🍽️ <b>Select food type:</b>',
+                'choose_food_type' => '🍽️ <b>Select food type:</b>\nYou can also type your own (example: <b>Lagman</b>).',
                 'ready_for_location' => '✅ Great, now share your location.',
+                'selected_food' => '🍽️ Selected food type: ',
                 'share_location' => '📍 Share location',
                 'not_found' => '😕 No nearby restaurants for this food type.',
                 'nearby_header' => '📌 <b>Nearby restaurants:</b>',
@@ -381,8 +395,9 @@ class TelegramWebhookController extends Controller
             'ru' => [
                 'welcome' => "🍽️ <b>Добро пожаловать!</b>\n\n1) Выберите язык\n2) Выберите тип еды\n3) Отправьте локацию",
                 'choose_language' => '🌐 <b>Выберите язык:</b>',
-                'choose_food_type' => '🍽️ <b>Выберите тип еды:</b>',
+                'choose_food_type' => '🍽️ <b>Выберите тип еды:</b>\nМожно также написать свой вариант (например: <b>Манты</b>).',
                 'ready_for_location' => '✅ Отлично, теперь отправьте локацию.',
+                'selected_food' => '🍽️ Выбранный тип еды: ',
                 'share_location' => '📍 Отправить локацию',
                 'not_found' => '😕 Рядом не найдено ресторанов по выбранному типу еды.',
                 'nearby_header' => '📌 <b>Ближайшие рестораны:</b>',
@@ -392,8 +407,9 @@ class TelegramWebhookController extends Controller
             'uz' => [
                 'welcome' => "🍽️ <b>Xush kelibsiz!</b>\n\n1) Tilni tanlang\n2) Ovqat turini tanlang\n3) Joylashuv yuboring",
                 'choose_language' => '🌐 <b>Tilni tanlang:</b>',
-                'choose_food_type' => '🍽️ <b>Ovqat turini tanlang:</b>',
+                'choose_food_type' => '🍽️ <b>Ovqat turini tanlang:</b>\nYoki o\'zingiz yozing (masalan: <b>Somsa</b>).',
                 'ready_for_location' => '✅ Zo‘r, endi joylashuvingizni yuboring.',
+                'selected_food' => '🍽️ Tanlangan ovqat turi: ',
                 'share_location' => '📍 Joylashuv yuborish',
                 'not_found' => '😕 Tanlangan ovqat turi uchun yaqin restoran topilmadi.',
                 'nearby_header' => '📌 <b>Yaqin restoranlar:</b>',
@@ -403,8 +419,9 @@ class TelegramWebhookController extends Controller
             'kk' => [
                 'welcome' => "🍽️ <b>Қош келдіңіз!</b>\n\n1) Тілді таңдаңыз\n2) Тағам түрін таңдаңыз\n3) Орналасқан жерді жіберіңіз",
                 'choose_language' => '🌐 <b>Тілді таңдаңыз:</b>',
-                'choose_food_type' => '🍽️ <b>Тағам түрін таңдаңыз:</b>',
+                'choose_food_type' => '🍽️ <b>Тағам түрін таңдаңыз:</b>\nНемесе өзіңіз жаза аласыз (мысалы: <b>Бауырсақ</b>).',
                 'ready_for_location' => '✅ Жақсы, енді орналасқан жерді жіберіңіз.',
+                'selected_food' => '🍽️ Таңдалған тағам түрі: ',
                 'share_location' => '📍 Орналасқан жерді жіберу',
                 'not_found' => '😕 Таңдалған тағам түріне сай жақын ресторан жоқ.',
                 'nearby_header' => '📌 <b>Жақын ресторандар:</b>',
@@ -414,8 +431,9 @@ class TelegramWebhookController extends Controller
             'ky' => [
                 'welcome' => "🍽️ <b>Кош келиңиз!</b>\n\n1) Тилди тандаңыз\n2) Тамак түрүн тандаңыз\n3) Жайгашкан жерди жөнөтүңүз",
                 'choose_language' => '🌐 <b>Тилди тандаңыз:</b>',
-                'choose_food_type' => '🍽️ <b>Тамак түрүн тандаңыз:</b>',
+                'choose_food_type' => '🍽️ <b>Тамак түрүн тандаңыз:</b>\nЖе өзүңүз жаза аласыз (мисалы: <b>Палоо</b>).',
                 'ready_for_location' => '✅ Сонун, эми жайгашкан жериңизди жөнөтүңүз.',
+                'selected_food' => '🍽️ Тандалган тамак түрү: ',
                 'share_location' => '📍 Жайгашкан жерди жөнөтүү',
                 'not_found' => '😕 Тандалган тамак түрү боюнча жакын ресторан жок.',
                 'nearby_header' => '📌 <b>Жакын ресторандар:</b>',
@@ -425,8 +443,9 @@ class TelegramWebhookController extends Controller
             'tg' => [
                 'welcome' => "🍽️ <b>Хуш омадед!</b>\n\n1) Забонро интихоб кунед\n2) Навъи хӯрокро интихоб кунед\n3) Маконро фиристонед",
                 'choose_language' => '🌐 <b>Забонро интихоб кунед:</b>',
-                'choose_food_type' => '🍽️ <b>Навъи хӯрокро интихоб кунед:</b>',
+                'choose_food_type' => '🍽️ <b>Навъи хӯрокро интихоб кунед:</b>\nЁ худатон нависед (мисол: <b>Қурутоб</b>).',
                 'ready_for_location' => '✅ Олиҷаноб, акнун маконро фиристонед.',
+                'selected_food' => '🍽️ Навъи хӯроки интихобшуда: ',
                 'share_location' => '📍 Фиристодани макон',
                 'not_found' => '😕 Барои ин навъи хӯрок ресторан ёфт нашуд.',
                 'nearby_header' => '📌 <b>Ресторанҳои наздик:</b>',
@@ -436,8 +455,9 @@ class TelegramWebhookController extends Controller
             'tr' => [
                 'welcome' => "🍽️ <b>Hoş geldiniz!</b>\n\n1) Dil seçin\n2) Yemek türü seçin\n3) Konum paylaşın",
                 'choose_language' => '🌐 <b>Dil seçin:</b>',
-                'choose_food_type' => '🍽️ <b>Yemek türü seçin:</b>',
+                'choose_food_type' => '🍽️ <b>Yemek türü seçin:</b>\nKendi türünüzü de yazabilirsiniz (örnek: <b>Çorba</b>).',
                 'ready_for_location' => '✅ Harika, şimdi konumunuzu paylaşın.',
+                'selected_food' => '🍽️ Seçilen yemek türü: ',
                 'share_location' => '📍 Konum paylaş',
                 'not_found' => '😕 Bu yemek türü için yakında restoran bulunamadı.',
                 'nearby_header' => '📌 <b>Yakındaki restoranlar:</b>',
