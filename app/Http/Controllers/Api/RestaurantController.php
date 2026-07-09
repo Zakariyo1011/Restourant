@@ -93,14 +93,28 @@ class RestaurantController extends Controller
         return null;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $restaurants = Restaurant::with('location')
-            ->where('is_active', true)
-            ->latest()
-            ->get();
+        $validated = $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:48',
+            'sort' => 'nullable|in:latest,name',
+        ]);
 
-        return response()->json($restaurants->load('images'));
+        $perPage = (int) ($validated['per_page'] ?? 12);
+        $sort = $validated['sort'] ?? 'latest';
+
+        $query = Restaurant::query()
+            ->with(['location', 'images'])
+            ->where('is_active', true);
+
+        if ($sort === 'name') {
+            $query->orderBy('name');
+        } else {
+            $query->latest();
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function show($id)
