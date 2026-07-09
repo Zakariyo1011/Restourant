@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,15 +12,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('food_types', function (Blueprint $table) {
-            $table->id();
-            $table->string('slug')->unique();
-            $table->json('translations'); // { en: 'Pizza', ru: 'Пицца', uz: 'Pitsa', ... }
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('food_types')) {
+            Schema::create('food_types', function (Blueprint $table) {
+                $table->id();
+                $table->string('slug')->unique();
+                $table->json('translations'); // { en: 'Pizza', ru: 'Пицца', uz: 'Pitsa', ... }
+                $table->timestamps();
+            });
+        }
 
-        // Insert food types
-        \Illuminate\Support\Facades\DB::table('food_types')->insert([
+        $now = now();
+
+        DB::table('food_types')->upsert([
             [
                 'slug' => 'pizza',
                 'translations' => json_encode([
@@ -31,8 +35,8 @@ return new class extends Migration
                     'tg' => 'Пицца',
                     'tr' => 'Pizza',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'burger',
@@ -45,8 +49,8 @@ return new class extends Migration
                     'tg' => 'Бургер',
                     'tr' => 'Burger',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'sushi',
@@ -59,8 +63,8 @@ return new class extends Migration
                     'tg' => 'Суши',
                     'tr' => 'Suşi',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'shawarma',
@@ -73,8 +77,8 @@ return new class extends Migration
                     'tg' => 'Шаурма',
                     'tr' => 'Şawarma',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'plov',
@@ -87,8 +91,8 @@ return new class extends Migration
                     'tg' => 'Плов',
                     'tr' => 'Pilav',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'kebab',
@@ -101,8 +105,8 @@ return new class extends Migration
                     'tg' => 'Кабоб',
                     'tr' => 'Kebap',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'noodles',
@@ -115,8 +119,8 @@ return new class extends Migration
                     'tg' => 'Лапша',
                     'tr' => 'Erişte',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
                 'slug' => 'bakery',
@@ -129,10 +133,10 @@ return new class extends Migration
                     'tg' => 'Нонвой',
                     'tr' => 'Fırın',
                 ]),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
-        ]);
+        ], ['slug'], ['translations', 'updated_at']);
     }
 
     /**
