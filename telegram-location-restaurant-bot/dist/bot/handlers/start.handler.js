@@ -1,12 +1,29 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.startHandler = void 0;
 const main_keyboard_1 = require("../keyboards/main.keyboard");
-const startHandler = (ctx) => {
-    return ctx.replyWithHTML('🍽️ <b>Restoran Finder botiga xush kelibsiz!</b>\n\n' +
-        'Yaqiningizdagi eng yaxshi restoranlarni topib beraman.\n\n' +
-        '1) Pastdagi <b>📍 Joylashuv yuborish</b> tugmasini bosing\n' +
-        '2) Joylashuvingizni yuboring\n' +
-        '3) Sizga eng yaqin <b>5 ta restoran</b> ro‘yxatini chiqaraman ✅', (0, main_keyboard_1.mainKeyboard)());
-};
+const language_handler_1 = require("./language.handler");
+const startHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    const messages = {
+        en: '🍽️ Welcome to Restaurant Finder!\n\n1️⃣ Select your language\n2️⃣ Choose food type\n3️⃣ Share your location\n4️⃣ Get nearby restaurants!',
+        ru: '🍽️ Добро пожаловать в Restaurant Finder!\n\n1️⃣ Выберите язык\n2️⃣ Выберите тип кухни\n3️⃣ Поделитесь местоположением\n4️⃣ Получите ближайшие рестораны!',
+        uz: '🍽️ Restaurant Finder-ga xush kelibsiz!\n\n1️⃣ Tilni tanlang\n2️⃣ Ovqat turini tanlang\n3️⃣ Joylashuvingizni ulashing\n4️⃣ Yaqin restoranlarni oling!',
+        kk: '🍽️ Restaurant Finder-ге қош келдіңіз!\n\n1️⃣ Тіл таңдаңыз\n2️⃣ Тағам түрін таңдаңыз\n3️⃣ Орналасқан жерін бөлісіңіз\n4️⃣ Жақын ресторандарды табыңыз!',
+        ky: '🍽️ Restaurant Finder-ге кош келдиңиз!\n\n1️⃣ Тил тандаңыз\n2️⃣ Тамак түрүн тандаңыз\n3️⃣ Жайгашкан жеринизди бөлүшүңүз\n4️⃣ Жакын рестораны табыңыз!',
+        tg: '🍽️ Ба Restaurant Finder хуш омадед!\n\n1️⃣ Забонро интихоб кунед\n2️⃣ Навъи хӯрокро интихоб кунед\n3️⃣ Мамлакати худро бугузорӣ кунед\n4️⃣ Рестораниҳои наздик ёбед!',
+        tr: '🍽️ Restaurant Finder\'a hoş geldiniz!\n\n1️⃣ Dil seçin\n2️⃣ Yemek türünü seçin\n3️⃣ Konumunuzu paylaşın\n4️⃣ Yakındaki restoranları bulun!',
+    };
+    yield ctx.replyWithHTML(messages.en, (0, main_keyboard_1.mainKeyboard)());
+    // Auto-start language selection
+    yield (0, language_handler_1.languageHandler)(ctx);
+});
 exports.startHandler = startHandler;

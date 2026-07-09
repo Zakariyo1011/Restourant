@@ -4,7 +4,14 @@ import axios from 'axios';
 import { config } from '../../config';
 import { Language } from '../../types';
 
-export const languageHandler = async (ctx: Context) => {
+interface SessionContext extends Context {
+    session?: {
+        language?: string;
+        foodType?: string;
+    };
+}
+
+export const languageHandler = async (ctx: SessionContext) => {
     try {
         const response = await axios.get<{ languages: Language[] }>(
             `${config.API_BASE_URL}/languages`
@@ -28,41 +35,45 @@ export const languageHandler = async (ctx: Context) => {
     }
 };
 
-export const handleLanguageSelection = async (ctx: Context) => {
-    const match = ctx.callbackQuery?.data?.match(/^lang_(.+)$/);
-    if (!match) return;
+export const handleLanguageSelection = async (ctx: SessionContext) => {
+    try {
+        const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+        const match = typeof callbackData === 'string' ? callbackData.match(/^lang_(.+)$/) : null;
+        
+        if (!match) return;
 
-    const languageCode = match[1];
+        const languageCode = match[1];
 
-    // Store language in session/context
-    const userId = ctx.from?.id.toString();
-    if (userId) {
-        // You can store this in Redis, database, or just in context
-        ctx.session = ctx.session || {};
-        (ctx.session as any).language = languageCode;
+        // Store language in session
+        if (ctx.session) {
+            ctx.session.language = languageCode;
+        }
+
+        const messages: Record<string, string> = {
+            en: '✅ English selected',
+            ru: '✅ Русский выбран',
+            uz: '✅ O\'zbek tanlandi',
+            kk: '✅ Қазақша таңдалды',
+            ky: '✅ Кыргызча тандалды',
+            tg: '✅ Тоҷикӣ танбор шуд',
+            tr: '✅ Türkçe seçildi',
+        };
+
+        await ctx.editMessageText(
+            messages[languageCode] || '✅ Language selected'
+        );
+
+        // Show food type selection
+        await foodTypeHandler(ctx, languageCode);
+    } catch (error) {
+        console.error('Error in language selection:', error);
+        await ctx.reply('❌ Error. Please try again.');
     }
-
-    const messages = {
-        en: '✅ English selected',
-        ru: '✅ Русский выбран',
-        uz: '✅ O\'zbek tanlandi',
-        kk: '✅ Қазақша таңдалды',
-        ky: '✅ Кыргызча тандалды',
-        tg: '✅ Тоҷикӣ танбор шуд',
-        tr: '✅ Türkçe seçildi',
-    };
-
-    await ctx.editMessageText(
-        messages[languageCode as keyof typeof messages] || '✅ Language selected'
-    );
-
-    // Show food type selection
-    await foodTypeHandler(ctx, languageCode);
 };
 
-export const foodTypeHandler = async (ctx: Context, languageCode?: string) => {
+export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string) => {
     try {
-        const lang = languageCode || ((ctx.session as any)?.language || 'en');
+        const lang = languageCode || ctx.session?.language || 'en';
 
         const response = await axios.get(
             `${config.API_BASE_URL}/food-types/${lang}`
@@ -76,7 +87,7 @@ export const foodTypeHandler = async (ctx: Context, languageCode?: string) => {
             ])
         );
 
-        const messages = {
+        const messages: Record<string, string> = {
             en: '🍽️ Select food type:',
             ru: '🍽️ Выберите тип кухни:',
             uz: '🍽️ Ovqat turini tanlang:',
@@ -88,12 +99,12 @@ export const foodTypeHandler = async (ctx: Context, languageCode?: string) => {
 
         if (ctx.callbackQuery) {
             await ctx.editMessageText(
-                messages[lang as keyof typeof messages] || '🍽️ Select food type:',
+                messages[lang] || '🍽️ Select food type:',
                 keyboard
             );
         } else {
             await ctx.reply(
-                messages[lang as keyof typeof messages] || '🍽️ Select food type:',
+                messages[lang] || '🍽️ Select food type:',
                 keyboard
             );
         }
@@ -103,33 +114,37 @@ export const foodTypeHandler = async (ctx: Context, languageCode?: string) => {
     }
 };
 
-export const handleFoodTypeSelection = async (ctx: Context) => {
-    const match = ctx.callbackQuery?.data?.match(/^food_(.+)$/);
-    if (!match) return;
+export const handleFoodTypeSelection = async (ctx: SessionContext) => {
+    try {
+        const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+        const match = typeof callbackData === 'string' ? callbackData.match(/^food_(.+)$/) : null;
+        
+        if (!match) return;
 
-    const foodType = match[1];
+        const foodType = match[1];
 
-    // Store food type in session
-    const userId = ctx.from?.id.toString();
-    if (userId) {
-        ctx.session = ctx.session || {};
-        (ctx.session as any).foodType = foodType;
+        // Store food type in session
+        if (ctx.session) {
+            ctx.session.foodType = foodType;
+        }
+
+        const lang = ctx.session?.language || 'en';
+
+        const messages: Record<string, string> = {
+            en: '✅ Food type selected. Now share your location to find restaurants.',
+            ru: '✅ Тип кухни выбран. Теперь поделитесь своим местоположением.',
+            uz: '✅ Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
+            kk: '✅ Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
+            ky: '✅ Тамак түрү тандалды. Эми жайгашкан жерин багы.',
+            tg: '✅ Навъи хӯрок интихоб шуд. Ҳоло мамлакати худро ба куллам бугузорӣ кунед.',
+            tr: '✅ Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
+        };
+
+        await ctx.editMessageText(
+            messages[lang] || 'Food type selected. Share your location.'
+        );
+    } catch (error) {
+        console.error('Error in food type selection:', error);
+        await ctx.reply('❌ Error. Please try again.');
     }
-
-    const lang = ((ctx.session as any)?.language || 'en') as string;
-
-    const messages = {
-        en: '✅ Food type selected. Now share your location to find restaurants.',
-        ru: '✅ Тип кухни выбран. Теперь поделитесь своим местоположением.',
-        uz: '✅ Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
-        kk: '✅ Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
-        ky: '✅ Тамак түрү тандалды. Эми жайгашкан жерин багы.',
-        tg: '✅ Навъи хӯрок интихоб шуд. Ҳоло мамлакати худро ба куллам бугузорӣ кунед.',
-        tr: '✅ Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
-    };
-
-    await ctx.editMessageText(
-        messages[lang as keyof typeof messages] ||
-            'Food type selected. Share your location.'
-    );
 };

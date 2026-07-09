@@ -2,6 +2,13 @@ import { Context } from 'telegraf';
 import { getNearbyRestaurants } from '../../services/restaurant.service';
 import { Location } from '../../types';
 
+interface SessionContext extends Context {
+    session?: {
+        language?: string;
+        foodType?: string;
+    };
+}
+
 const getMessages = (language: string) => ({
     requesting: {
         en: 'Please share your location.',
@@ -50,11 +57,11 @@ const getMessages = (language: string) => ({
     },
 });
 
-export const locationHandler = async (ctx: Context) => {
+export const locationHandler = async (ctx: SessionContext) => {
     const message = ctx.message as { location?: Location } | undefined;
     const location = message?.location;
-    const language = ((ctx.session as any)?.language || 'en') as string;
-    const foodType = ((ctx.session as any)?.foodType || '') as string;
+    const language = (ctx.session?.language || 'en') as string;
+    const foodType = (ctx.session?.foodType || '') as string;
     const msgs = getMessages(language);
 
     if (!location) {
