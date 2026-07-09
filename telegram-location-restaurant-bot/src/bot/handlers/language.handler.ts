@@ -11,6 +11,11 @@ interface SessionContext extends Context {
     };
 }
 
+const ensureSession = (ctx: SessionContext) => {
+    ctx.session ??= {};
+    return ctx.session;
+};
+
 export const languageHandler = async (ctx: SessionContext) => {
     try {
         const response = await axios.get<{ languages: Language[] }>(
@@ -37,6 +42,8 @@ export const languageHandler = async (ctx: SessionContext) => {
 
 export const handleLanguageSelection = async (ctx: SessionContext) => {
     try {
+        await ctx.answerCbQuery().catch(() => undefined);
+
         const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
         const match = typeof callbackData === 'string' ? callbackData.match(/^lang_(.+)$/) : null;
         
@@ -45,9 +52,7 @@ export const handleLanguageSelection = async (ctx: SessionContext) => {
         const languageCode = match[1];
 
         // Store language in session
-        if (ctx.session) {
-            ctx.session.language = languageCode;
-        }
+        ensureSession(ctx).language = languageCode;
 
         const messages: Record<string, string> = {
             en: '✅ English selected',
@@ -116,6 +121,8 @@ export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string
 
 export const handleFoodTypeSelection = async (ctx: SessionContext) => {
     try {
+        await ctx.answerCbQuery().catch(() => undefined);
+
         const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
         const match = typeof callbackData === 'string' ? callbackData.match(/^food_(.+)$/) : null;
         
@@ -124,9 +131,7 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
         const foodType = match[1];
 
         // Store food type in session
-        if (ctx.session) {
-            ctx.session.foodType = foodType;
-        }
+        ensureSession(ctx).foodType = foodType;
 
         const lang = ctx.session?.language || 'en';
 

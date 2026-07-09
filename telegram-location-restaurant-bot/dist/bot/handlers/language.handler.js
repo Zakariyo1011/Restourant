@@ -16,6 +16,11 @@ exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLangua
 const telegraf_1 = require("telegraf");
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("../../config");
+const ensureSession = (ctx) => {
+    var _a;
+    (_a = ctx.session) !== null && _a !== void 0 ? _a : (ctx.session = {});
+    return ctx.session;
+};
 const languageHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/languages`);
@@ -33,15 +38,14 @@ const languageHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
 exports.languageHandler = languageHandler;
 const handleLanguageSelection = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        yield ctx.answerCbQuery().catch(() => undefined);
         const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
         const match = typeof callbackData === 'string' ? callbackData.match(/^lang_(.+)$/) : null;
         if (!match)
             return;
         const languageCode = match[1];
         // Store language in session
-        if (ctx.session) {
-            ctx.session.language = languageCode;
-        }
+        ensureSession(ctx).language = languageCode;
         const messages = {
             en: '✅ English selected',
             ru: '✅ Русский выбран',
@@ -95,15 +99,14 @@ exports.foodTypeHandler = foodTypeHandler;
 const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
+        yield ctx.answerCbQuery().catch(() => undefined);
         const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
         const match = typeof callbackData === 'string' ? callbackData.match(/^food_(.+)$/) : null;
         if (!match)
             return;
         const foodType = match[1];
         // Store food type in session
-        if (ctx.session) {
-            ctx.session.foodType = foodType;
-        }
+        ensureSession(ctx).foodType = foodType;
         const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
         const messages = {
             en: '✅ Food type selected. Now share your location to find restaurants.',
