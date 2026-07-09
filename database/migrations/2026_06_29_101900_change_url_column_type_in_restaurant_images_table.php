@@ -12,6 +12,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE restaurant_images MODIFY url VARCHAR(255) NOT NULL');
+        DB::statement('ALTER TABLE restaurant_images MODIFY url TEXT NOT NULL');
     }
 };
