@@ -3,13 +3,25 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\FoodType;
 use App\Models\Restaurant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class TelegramWebhookController extends Controller
 {
+    private const LANGUAGES = [
+        'en' => '🇬🇧 English',
+        'ru' => '🇷🇺 Русский',
+        'uz' => '🇺🇿 O\'zbek',
+        'kk' => '🇰🇿 Қазақша',
+        'ky' => '🇰🇬 Кыргызча',
+        'tg' => '🇹🇯 Тоҷикӣ',
+        'tr' => '🇹🇷 Türkçe',
+    ];
+
     public function __invoke(Request $request)
     {
         $secret = config('services.telegram.webhook_secret');
@@ -22,57 +34,89 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        $chatId = data_get($message, 'chat.id');
+        $chatId = (int) data_get($message, 'chat.id');
         if (!$chatId) {
             return response()->json(['ok' => true]);
         }
 
+        $state = $this->getState($chatId);
         $text = trim((string) data_get($message, 'text', ''));
-        $normalizedText = mb_strtolower($text);
+        $normalized = mb_strtolower($text);
         $location = data_get($message, 'location');
 
+        if ($text === '/start' || in_array($normalized, ['salom', 'assalomu alaykum', 'hello', 'hi'], true)) {
+            $this->setState($chatId, []);
+            $this->sendWelcomeMessage($chatId);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($text !== '') {
+            $languageCode = $this->findLanguageByText($text);
+            if ($languageCode) {
+                $state['language'] = $languageCode;
+                unset($state['food_type']);
+                $this->setState($chatId, $state);
+                $this->sendChooseFoodTypeMessage($chatId, $languageCode);
+                return response()->json(['ok' => true]);
+            }
+
+            if ($normalized === '🌐 til tanlash' || $normalized === '🌐 select language' || $text === '/language') {
+                $this->sendChooseLanguageMessage($chatId);
+                return response()->json(['ok' => true]);
+            }
+
+            if ($normalized === '🍽️ ovqat turi' || $normalized === '🍽️ food type' || $text === '/food') {
+                if (empty($state['language'])) {
+                    $this->sendChooseLanguageMessage($chatId);
+                    return response()->json(['ok' => true]);
+                }
+
+                $this->sendChooseFoodTypeMessage($chatId, $state['language']);
+                return response()->json(['ok' => true]);
+            }
+
+            if (!empty($state['language'])) {
+                $foodType = $this->findFoodTypeByText($text, $state['language']);
+                if ($foodType) {
+                    $state['food_type'] = $foodType->slug;
+                    $this->setState($chatId, $state);
+                    $this->sendReadyForLocationMessage($chatId, $state['language']);
+                    return response()->json(['ok' => true]);
+                }
+            }
+        }
+
         if ($location) {
+            if (empty($state['language'])) {
+                $this->sendChooseLanguageMessage($chatId);
+                return response()->json(['ok' => true]);
+            }
+
+            if (empty($state['food_type'])) {
+                $this->sendChooseFoodTypeMessage($chatId, $state['language']);
+                return response()->json(['ok' => true]);
+            }
+
             $this->handleLocationMessage(
-                (int) $chatId,
+                $chatId,
                 (float) data_get($location, 'latitude'),
-                (float) data_get($location, 'longitude')
+                (float) data_get($location, 'longitude'),
+                $state['language'],
+                $state['food_type']
             );
 
             return response()->json(['ok' => true]);
         }
 
-        if ($text === '/start') {
-            $this->sendWelcomeMessage((int) $chatId);
-            return response()->json(['ok' => true]);
-        }
-
-        if ($text === '/menu' || $text === '📋 Menyu') {
-            $this->sendMenuMessage((int) $chatId);
-            return response()->json(['ok' => true]);
-        }
-
-        if ($text === '/help' || $text === '❓ Yordam') {
-            $this->sendHelpMessage((int) $chatId);
-            return response()->json(['ok' => true]);
-        }
-
-        if ($text === '/about' || $text === 'ℹ️ Bot haqida') {
-            $this->sendAboutMessage((int) $chatId);
-            return response()->json(['ok' => true]);
-        }
-
-        if (in_array($normalizedText, ['salom', 'assalomu alaykum', 'hello', 'hi'], true)) {
-            $this->sendWelcomeMessage((int) $chatId);
-            return response()->json(['ok' => true]);
-        }
+        $lang = $state['language'] ?? 'uz';
+        $messages = $this->messages($lang);
 
         $this->sendText(
-            (int) $chatId,
-            '🤖 Xabarni tushunmadim.\n\n'
-                . 'Iltimos, <b>📍 Joylashuv yuborish</b> tugmasini bosing yoki <b>📋 Menyu</b>ni oching.',
+            $chatId,
+            $messages['unknown'],
             [
                 'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
+                'reply_markup' => $this->mainKeyboardMarkup($lang),
             ]
         );
 
@@ -81,76 +125,65 @@ class TelegramWebhookController extends Controller
 
     private function sendWelcomeMessage(int $chatId): void
     {
-        $this->sendText(
-            $chatId,
-            "🍽️ <b>Restourant botiga xush kelibsiz!</b>\n\n"
-                . "Men sizga yaqin atrofdagi eng mos restoranlarni topib beraman.\n\n"
-                . "⚡ <b>Qanday ishlaydi?</b>\n"
-                . "📱 <b>Telefon:</b> <b>📍 Joylashuv yuborish</b> tugmasini bosing\n"
-                . "💻 <b>Mac / Desktop:</b> <b>📎 → Location</b> tugmasini bosing\n\n"
-                . "Boshlashga tayyormisiz? 🚀",
-            [
-                'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
-            ]
-        );
+        $messages = $this->messages('uz');
+        $this->sendText($chatId, $messages['welcome'], [
+            'parse_mode' => 'HTML',
+            'reply_markup' => $this->languageKeyboardMarkup(),
+        ]);
     }
 
-    private function sendHelpMessage(int $chatId): void
+    private function sendChooseLanguageMessage(int $chatId): void
     {
-        $this->sendText(
-            $chatId,
-            "❓ <b>Yordam</b>\n\n"
-                . "📱 <b>Telefon:</b>\n"
-                . "Pastdagi <b>📍 Joylashuv yuborish</b> tugmasini bosing\n\n"
-                . "💻 <b>Mac / Desktop:</b>\n"
-                . "Chat pastidagi <b>📎 ikonkasi → Location</b> ni tanlang\n\n"
-                . "• <b>/menu</b> — bosh menyu\n"
-                . "• <b>/about</b> — bot haqida",
-            [
-                'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
-            ]
-        );
+        $messages = $this->messages('uz');
+        $this->sendText($chatId, $messages['choose_language'], [
+            'parse_mode' => 'HTML',
+            'reply_markup' => $this->languageKeyboardMarkup(),
+        ]);
     }
 
-    private function sendMenuMessage(int $chatId): void
+    private function sendChooseFoodTypeMessage(int $chatId, string $lang): void
     {
-        $this->sendText(
-            $chatId,
-            "📋 <b>Asosiy menyu</b>\n\n"
-                . "• <b>📍 Joylashuv yuborish</b> — yaqin restoranlarni topish\n"
-                . "• <b>❓ Yordam</b> — foydalanish yo'riqnomasi\n"
-                . "• <b>ℹ️ Bot haqida</b> — loyiha haqida ma'lumot\n\n"
-                . "Davom etish uchun lokatsiyangizni yuboring 👇",
-            [
-                'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
-            ]
-        );
+        $messages = $this->messages($lang);
+        $this->sendText($chatId, $messages['choose_food_type'], [
+            'parse_mode' => 'HTML',
+            'reply_markup' => $this->foodTypeKeyboardMarkup($lang),
+        ]);
     }
 
-    private function sendAboutMessage(int $chatId): void
+    private function sendReadyForLocationMessage(int $chatId, string $lang): void
     {
-        $this->sendText(
-            $chatId,
-            "ℹ️ <b>Bot haqida</b>\n\n"
-                . "Ushbu bot siz yuborgan joylashuv asosida restoranlarni masofa bo'yicha topadi.\n"
-                . "Ma'lumotlar Restourant platformasi API dan olinadi.\n\n"
-                . "Sifatli tavsiyalar uchun lokatsiyani aniq yuboring 📍",
-            [
-                'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
-            ]
-        );
+        $messages = $this->messages($lang);
+        $this->sendText($chatId, $messages['ready_for_location'], [
+            'parse_mode' => 'HTML',
+            'reply_markup' => $this->mainKeyboardMarkup($lang),
+        ]);
     }
 
-    private function handleLocationMessage(int $chatId, float $latitude, float $longitude): void
+    private function handleLocationMessage(int $chatId, float $latitude, float $longitude, string $lang, string $foodTypeSlug): void
     {
+        $messages = $this->messages($lang);
+        $foodType = FoodType::query()->where('slug', $foodTypeSlug)->first();
+
+        $keywords = [$foodTypeSlug];
+        if ($foodType && is_array($foodType->translations)) {
+            $keywords = array_merge($keywords, array_values($foodType->translations));
+        }
+
+        $normalizedKeywords = collect($keywords)
+            ->filter(fn ($item) => is_string($item) && trim($item) !== '')
+            ->map(fn ($item) => mb_strtolower(trim($item)))
+            ->unique()
+            ->values();
+
         $restaurants = Restaurant::query()
             ->with('location')
             ->where('is_active', true)
             ->whereHas('location')
+            ->where(function ($query) use ($normalizedKeywords) {
+                foreach ($normalizedKeywords as $keyword) {
+                    $query->orWhereRaw('LOWER(cuisine_type) LIKE ?', ['%' . $keyword . '%']);
+                }
+            })
             ->get()
             ->map(function ($restaurant) use ($latitude, $longitude) {
                 $earthRadius = 6371;
@@ -175,13 +208,9 @@ class TelegramWebhookController extends Controller
             ->values();
 
         if ($restaurants->isEmpty()) {
-            $this->sendText(
-                $chatId,
-                '😕 Yaqin atrofda restoran topilmadi.\n\nBiroz boshqa nuqtadan lokatsiya yuborib ko‘ring.',
-                [
-                    'reply_markup' => $this->keyboardMarkup(),
-                ]
-            );
+            $this->sendText($chatId, $messages['not_found'], [
+                'reply_markup' => $this->mainKeyboardMarkup($lang),
+            ]);
             return;
         }
 
@@ -200,10 +229,10 @@ class TelegramWebhookController extends Controller
 
         $this->sendText(
             $chatId,
-            "📌 <b>Sizga eng yaqin restoranlar:</b>\n\n{$lines}\n\nYana qidirish uchun joylashuvingizni qayta yuboring ✅",
+            $messages['nearby_header'] . "\n\n{$lines}\n\n" . $messages['search_again'],
             [
                 'parse_mode' => 'HTML',
-                'reply_markup' => $this->keyboardMarkup(),
+                'reply_markup' => $this->mainKeyboardMarkup($lang),
             ]
         );
     }
@@ -229,26 +258,194 @@ class TelegramWebhookController extends Controller
         Http::asForm()->post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
     }
 
-    private function keyboardMarkup(): array
+    private function languageKeyboardMarkup(): array
     {
         return [
             'keyboard' => [
-                [
-                    [
-                        'text' => '📍 Joylashuv yuborish',
-                        'request_location' => true,
-                    ],
-                ],
-                [
-                    ['text' => '📋 Menyu'],
-                ],
-                [
-                    ['text' => '❓ Yordam'],
-                    ['text' => 'ℹ️ Bot haqida'],
-                ],
+                [['text' => self::LANGUAGES['en']], ['text' => self::LANGUAGES['ru']]],
+                [['text' => self::LANGUAGES['uz']], ['text' => self::LANGUAGES['kk']]],
+                [['text' => self::LANGUAGES['ky']], ['text' => self::LANGUAGES['tg']]],
+                [['text' => self::LANGUAGES['tr']]],
             ],
             'resize_keyboard' => true,
             'is_persistent' => true,
         ];
+    }
+
+    private function foodTypeKeyboardMarkup(string $lang): array
+    {
+        $rows = FoodType::query()
+            ->orderBy('id')
+            ->get()
+            ->map(function (FoodType $foodType) use ($lang) {
+                $translations = is_array($foodType->translations) ? $foodType->translations : [];
+                $label = $translations[$lang] ?? $translations['en'] ?? $foodType->slug;
+                return [['text' => $label]];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'keyboard' => array_merge($rows, [
+                [['text' => '🌐 Til tanlash']],
+                [['text' => '🍽️ Ovqat turi']],
+            ]),
+            'resize_keyboard' => true,
+            'is_persistent' => true,
+        ];
+    }
+
+    private function mainKeyboardMarkup(string $lang): array
+    {
+        return [
+            'keyboard' => [
+                [[
+                    'text' => $this->messages($lang)['share_location'],
+                    'request_location' => true,
+                ]],
+                [['text' => '🌐 Til tanlash'], ['text' => '🍽️ Ovqat turi']],
+            ],
+            'resize_keyboard' => true,
+            'is_persistent' => true,
+        ];
+    }
+
+    private function findLanguageByText(string $text): ?string
+    {
+        foreach (self::LANGUAGES as $code => $label) {
+            if ($text === $label) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
+    private function findFoodTypeByText(string $text, string $lang): ?FoodType
+    {
+        $normalized = mb_strtolower(trim($text));
+        $foodTypes = FoodType::query()->get();
+
+        foreach ($foodTypes as $foodType) {
+            $translations = is_array($foodType->translations) ? $foodType->translations : [];
+            $labels = [
+                $translations[$lang] ?? null,
+                $translations['en'] ?? null,
+                $foodType->slug,
+            ];
+
+            foreach ($labels as $label) {
+                if (!is_string($label) || $label === '') {
+                    continue;
+                }
+
+                if ($normalized === mb_strtolower($label)) {
+                    return $foodType;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function getState(int $chatId): array
+    {
+        $state = Cache::get($this->stateKey($chatId), []);
+        return is_array($state) ? $state : [];
+    }
+
+    private function setState(int $chatId, array $state): void
+    {
+        Cache::put($this->stateKey($chatId), $state, now()->addDays(30));
+    }
+
+    private function stateKey(int $chatId): string
+    {
+        return 'telegram_state_' . $chatId;
+    }
+
+    private function messages(string $lang): array
+    {
+        $all = [
+            'en' => [
+                'welcome' => "🍽️ <b>Welcome!</b>\n\n1) Select language\n2) Select food type\n3) Share location",
+                'choose_language' => '🌐 <b>Select language:</b>',
+                'choose_food_type' => '🍽️ <b>Select food type:</b>',
+                'ready_for_location' => '✅ Great, now share your location.',
+                'share_location' => '📍 Share location',
+                'not_found' => '😕 No nearby restaurants for this food type.',
+                'nearby_header' => '📌 <b>Nearby restaurants:</b>',
+                'search_again' => 'Share location again to search again.',
+                'unknown' => '🤖 Use buttons below: language, food type, or location.',
+            ],
+            'ru' => [
+                'welcome' => "🍽️ <b>Добро пожаловать!</b>\n\n1) Выберите язык\n2) Выберите тип еды\n3) Отправьте локацию",
+                'choose_language' => '🌐 <b>Выберите язык:</b>',
+                'choose_food_type' => '🍽️ <b>Выберите тип еды:</b>',
+                'ready_for_location' => '✅ Отлично, теперь отправьте локацию.',
+                'share_location' => '📍 Отправить локацию',
+                'not_found' => '😕 Рядом не найдено ресторанов по выбранному типу еды.',
+                'nearby_header' => '📌 <b>Ближайшие рестораны:</b>',
+                'search_again' => 'Чтобы искать снова, отправьте локацию снова.',
+                'unknown' => '🤖 Используйте кнопки: язык, тип еды, локация.',
+            ],
+            'uz' => [
+                'welcome' => "🍽️ <b>Xush kelibsiz!</b>\n\n1) Tilni tanlang\n2) Ovqat turini tanlang\n3) Joylashuv yuboring",
+                'choose_language' => '🌐 <b>Tilni tanlang:</b>',
+                'choose_food_type' => '🍽️ <b>Ovqat turini tanlang:</b>',
+                'ready_for_location' => '✅ Zo‘r, endi joylashuvingizni yuboring.',
+                'share_location' => '📍 Joylashuv yuborish',
+                'not_found' => '😕 Tanlangan ovqat turi uchun yaqin restoran topilmadi.',
+                'nearby_header' => '📌 <b>Yaqin restoranlar:</b>',
+                'search_again' => 'Qayta qidirish uchun joylashuvni yana yuboring.',
+                'unknown' => '🤖 Pastdagi tugmalardan foydalaning: til, ovqat turi, joylashuv.',
+            ],
+            'kk' => [
+                'welcome' => "🍽️ <b>Қош келдіңіз!</b>\n\n1) Тілді таңдаңыз\n2) Тағам түрін таңдаңыз\n3) Орналасқан жерді жіберіңіз",
+                'choose_language' => '🌐 <b>Тілді таңдаңыз:</b>',
+                'choose_food_type' => '🍽️ <b>Тағам түрін таңдаңыз:</b>',
+                'ready_for_location' => '✅ Жақсы, енді орналасқан жерді жіберіңіз.',
+                'share_location' => '📍 Орналасқан жерді жіберу',
+                'not_found' => '😕 Таңдалған тағам түріне сай жақын ресторан жоқ.',
+                'nearby_header' => '📌 <b>Жақын ресторандар:</b>',
+                'search_again' => 'Қайта іздеу үшін орналасқан жерді қайта жіберіңіз.',
+                'unknown' => '🤖 Төмендегі батырмаларды қолданыңыз: тіл, тағам түрі, орналасқан жер.',
+            ],
+            'ky' => [
+                'welcome' => "🍽️ <b>Кош келиңиз!</b>\n\n1) Тилди тандаңыз\n2) Тамак түрүн тандаңыз\n3) Жайгашкан жерди жөнөтүңүз",
+                'choose_language' => '🌐 <b>Тилди тандаңыз:</b>',
+                'choose_food_type' => '🍽️ <b>Тамак түрүн тандаңыз:</b>',
+                'ready_for_location' => '✅ Сонун, эми жайгашкан жериңизди жөнөтүңүз.',
+                'share_location' => '📍 Жайгашкан жерди жөнөтүү',
+                'not_found' => '😕 Тандалган тамак түрү боюнча жакын ресторан жок.',
+                'nearby_header' => '📌 <b>Жакын ресторандар:</b>',
+                'search_again' => 'Кайра издөө үчүн жайгашкан жерди кайра жөнөтүңүз.',
+                'unknown' => '🤖 Төмөнкү баскычтарды колдонуңуз: тил, тамак түрү, жайгашкан жер.',
+            ],
+            'tg' => [
+                'welcome' => "🍽️ <b>Хуш омадед!</b>\n\n1) Забонро интихоб кунед\n2) Навъи хӯрокро интихоб кунед\n3) Маконро фиристонед",
+                'choose_language' => '🌐 <b>Забонро интихоб кунед:</b>',
+                'choose_food_type' => '🍽️ <b>Навъи хӯрокро интихоб кунед:</b>',
+                'ready_for_location' => '✅ Олиҷаноб, акнун маконро фиристонед.',
+                'share_location' => '📍 Фиристодани макон',
+                'not_found' => '😕 Барои ин навъи хӯрок ресторан ёфт нашуд.',
+                'nearby_header' => '📌 <b>Ресторанҳои наздик:</b>',
+                'search_again' => 'Барои ҷустуҷӯи дубора маконро боз фиристонед.',
+                'unknown' => '🤖 Аз тугмаҳо истифода баред: забон, навъи хӯрок, макон.',
+            ],
+            'tr' => [
+                'welcome' => "🍽️ <b>Hoş geldiniz!</b>\n\n1) Dil seçin\n2) Yemek türü seçin\n3) Konum paylaşın",
+                'choose_language' => '🌐 <b>Dil seçin:</b>',
+                'choose_food_type' => '🍽️ <b>Yemek türü seçin:</b>',
+                'ready_for_location' => '✅ Harika, şimdi konumunuzu paylaşın.',
+                'share_location' => '📍 Konum paylaş',
+                'not_found' => '😕 Bu yemek türü için yakında restoran bulunamadı.',
+                'nearby_header' => '📌 <b>Yakındaki restoranlar:</b>',
+                'search_again' => 'Tekrar aramak için konumu tekrar paylaşın.',
+                'unknown' => '🤖 Aşağıdaki düğmeleri kullanın: dil, yemek türü, konum.',
+            ],
+        ];
+
+        return $all[$lang] ?? $all['uz'];
     }
 }
