@@ -22,7 +22,34 @@ return new class extends Migration
             });
         }
 
-        DB::table('languages')->upsert([
+        if (! Schema::hasColumn('languages', 'code')) {
+            Schema::table('languages', function (Blueprint $table) {
+                $table->string('code')->nullable()->after('id');
+            });
+        }
+
+        if (! Schema::hasColumn('languages', 'name')) {
+            Schema::table('languages', function (Blueprint $table) {
+                $table->string('name')->nullable()->after('code');
+            });
+        }
+
+        if (! Schema::hasColumn('languages', 'native_name')) {
+            Schema::table('languages', function (Blueprint $table) {
+                $table->string('native_name')->nullable()->after('name');
+            });
+        }
+
+        $hasFlagColumn = Schema::hasColumn('languages', 'flag');
+
+        if (! $hasFlagColumn) {
+            Schema::table('languages', function (Blueprint $table) {
+                $table->string('flag')->nullable()->after('native_name');
+            });
+            $hasFlagColumn = true;
+        }
+
+        $records = [
             ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'flag' => '🇬🇧'],
             ['code' => 'ru', 'name' => 'Russian', 'native_name' => 'Русский', 'flag' => '🇷🇺'],
             ['code' => 'uz', 'name' => 'Uzbek', 'native_name' => "O'zbek", 'flag' => '🇺🇿'],
@@ -30,7 +57,22 @@ return new class extends Migration
             ['code' => 'ky', 'name' => 'Kyrgyz', 'native_name' => 'Кыргызча', 'flag' => '🇰🇬'],
             ['code' => 'tg', 'name' => 'Tajik', 'native_name' => 'Тоҷикӣ', 'flag' => '🇹🇯'],
             ['code' => 'tr', 'name' => 'Turkish', 'native_name' => 'Türkçe', 'flag' => '🇹🇷'],
-        ], ['code'], ['name', 'native_name', 'flag']);
+        ];
+
+        if (! $hasFlagColumn) {
+            $records = array_map(function (array $item) {
+                unset($item['flag']);
+                return $item;
+            }, $records);
+        }
+
+        $updateColumns = ['name', 'native_name'];
+
+        if ($hasFlagColumn) {
+            $updateColumns[] = 'flag';
+        }
+
+        DB::table('languages')->upsert($records, ['code'], $updateColumns);
     }
 
     /**
