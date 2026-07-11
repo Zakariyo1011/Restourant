@@ -13,6 +13,7 @@ class AdminController extends Controller
     public function restaurants()
     {
         $restaurants = Restaurant::with(['owner', 'location'])
+            ->withTrashed()
             ->latest()
             ->get();
 
@@ -22,11 +23,65 @@ class AdminController extends Controller
     // Restoranni active/inactive qilish
     public function toggleActive(Restaurant $restaurant)
     {
+        if ($restaurant->trashed()) {
+            return response()->json([
+                'message' => 'Arxivlangan restoran holatini o\'zgartirib bo\'lmaydi. Avval tiklang.',
+            ], 422);
+        }
+
         $restaurant->update(['is_active' => !$restaurant->is_active]);
 
         return response()->json([
             'message'   => $restaurant->is_active ? __('messages.activated') : __('messages.deactivated'),
             'restaurant' => $restaurant,
+        ]);
+    }
+
+    public function destroy(Restaurant $restaurant)
+    {
+        $restaurant->delete();
+
+        return response()->json([
+            'message' => 'Restoran arxivga olindi.',
+        ]);
+    }
+
+    public function restore(int $restaurant)
+    {
+        $item = Restaurant::withTrashed()->findOrFail($restaurant);
+
+        if (! $item->trashed()) {
+            return response()->json([
+                'message' => 'Restoran allaqachon faol holatda.',
+            ], 422);
+        }
+
+        $item->restore();
+
+        return response()->json([
+            'message' => 'Restoran tiklandi.',
+            'restaurant' => $item->fresh(['owner', 'location']),
+        ]);
+    }
+
+    public function bulkUpdateStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:restaurants,id',
+            'is_active' => 'required|boolean',
+        ]);
+
+        $updated = Restaurant::query()
+            ->whereIn('id', $validated['ids'])
+            ->whereNull('deleted_at')
+            ->update(['is_active' => $validated['is_active']]);
+
+        return response()->json([
+            'message' => $validated['is_active']
+                ? "{$updated} ta restoran faollashtirildi."
+                : "{$updated} ta restoran nofaol qilindi.",
+            'updated' => $updated,
         ]);
     }
 

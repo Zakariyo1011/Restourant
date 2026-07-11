@@ -128,6 +128,9 @@ Route::middleware('auth:sanctum')->group(function () {
 // Admin (token + admin role kerak)
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/admin/restaurants', [AdminController::class, 'restaurants']);
+    Route::patch('/admin/restaurants/bulk-status', [AdminController::class, 'bulkUpdateStatus']);
     Route::patch('/admin/restaurants/{restaurant}/toggle', [AdminController::class, 'toggleActive']);
+    Route::delete('/admin/restaurants/{restaurant}', [AdminController::class, 'destroy']);
+    Route::patch('/admin/restaurants/{restaurant}/restore', [AdminController::class, 'restore']);
     Route::post('/admin/import-google-places', [AdminController::class, 'importGooglePlaces']);
 });
