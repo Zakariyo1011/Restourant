@@ -9,13 +9,16 @@ use Illuminate\Support\Facades\Http;
 
 class AdminController extends Controller
 {
-    // Barcha restoranlar ro'yxati
-    public function restaurants()
+    // Barcha restoranlar ro'yxati (paginated)
+    public function restaurants(Request $request)
     {
+        $perPage = (int) $request->input('per_page', 50);
+        $perPage = min(max($perPage, 5), 200);
+
         $restaurants = Restaurant::with(['owner', 'location'])
             ->withTrashed()
             ->latest()
-            ->get();
+            ->paginate($perPage);
 
         return response()->json($restaurants);
     }

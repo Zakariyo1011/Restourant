@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\RestaurantController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\LanguageController;
+use App\Http\Controllers\Api\PromoSlideController;
 
 // Test
 Route::get('/test', function () {
@@ -125,6 +126,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/send-arija', [RestaurantController::class, 'sendArija']);
 });
 
+// Promo slides — public
+Route::get('/promo-slides', [PromoSlideController::class, 'index']);
+
 // Admin (token + admin role kerak)
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/admin/restaurants', [AdminController::class, 'restaurants']);
@@ -133,4 +137,10 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::delete('/admin/restaurants/{restaurant}', [AdminController::class, 'destroy']);
     Route::patch('/admin/restaurants/{restaurant}/restore', [AdminController::class, 'restore']);
     Route::post('/admin/import-google-places', [AdminController::class, 'importGooglePlaces']);
+
+    // Promo slides admin CRUD
+    Route::get('/admin/promo-slides', [PromoSlideController::class, 'adminIndex']);
+    Route::post('/admin/promo-slides', [PromoSlideController::class, 'store']);
+    Route::post('/admin/promo-slides/{promoSlide}', [PromoSlideController::class, 'update']);
+    Route::delete('/admin/promo-slides/{promoSlide}', [PromoSlideController::class, 'destroy']);
 });
