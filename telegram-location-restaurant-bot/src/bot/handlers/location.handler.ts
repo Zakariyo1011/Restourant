@@ -1,6 +1,9 @@
 import { Context } from 'telegraf';
+import axios from 'axios';
 import { getNearbyRestaurants } from '../../services/restaurant.service';
 import { Location } from '../../types';
+import { config } from '../../config';
+import { mainKeyboard } from '../keyboards/main.keyboard';
 
 interface SessionContext extends Context {
     session?: {
@@ -57,6 +60,109 @@ const getMessages = (language: string) => ({
     },
 });
 
+const resolveImageUrl = (value?: string | null) => {
+    if (!value) {
+        return null;
+    }
+
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+        return null;
+    }
+
+    const apiOrigin = config.API_BASE_URL.replace(/\/api\/?$/, '');
+    const publicAssetOrigin = (config.PUBLIC_ASSET_BASE_URL || apiOrigin).replace(/\/$/, '');
+
+    if (/^https?:\/\//i.test(trimmed)) {
+        try {
+            const parsed = new URL(trimmed);
+            const isLoopbackHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+
+            if (!isLoopbackHost) {
+                return trimmed;
+            }
+
+            return `${publicAssetOrigin}${parsed.pathname}${parsed.search}`;
+        } catch {
+            return trimmed;
+        }
+    }
+
+    const clean = trimmed.replace(/^\/+/, '');
+
+    return clean.startsWith('storage/')
+        ? `${publicAssetOrigin}/${clean}`
+        : `${publicAssetOrigin}/storage/${clean}`;
+};
+
+const isLoopbackUrl = (value: string) => {
+    try {
+        const parsed = new URL(value);
+        return ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+    } catch {
+        return false;
+    }
+};
+
+const buildPhotoInput = async (imageUrl: string, restaurantName: string) => {
+    if (!isLoopbackUrl(imageUrl)) {
+        return imageUrl;
+    }
+
+    const response = await axios.get<ArrayBuffer>(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+    });
+
+    const safeName = restaurantName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'restaurant';
+
+    return {
+        source: Buffer.from(response.data),
+        filename: `${safeName}.jpg`,
+    };
+};
+
+const buildRestaurantCaption = (restaurant: any, index: number) => {
+    const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🍽️';
+    const addressPart = restaurant.address ? `\n📍 <b>Manzil:</b> ${restaurant.address}` : '';
+    const phonePart = restaurant.phone ? `\n📞 <b>Telefon:</b> ${restaurant.phone}` : '';
+    const websitePart = restaurant.website ? `\n🌐 <a href="${restaurant.website}">Sayt</a>` : '';
+    const mapsUrl = `https://maps.google.com/?q=${restaurant.location.latitude},${restaurant.location.longitude}`;
+
+    return `${rankEmoji} <b>${restaurant.name}</b>\n📏 <b>Masofa:</b> ${restaurant.distance.toFixed(1)} km${addressPart}${phonePart}${websitePart}\n🧭 <a href="${mapsUrl}">Xaritada ko'rish</a>`;
+};
+
+const normalizeFoodTypeText = (value: string) =>
+    value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+const matchesFoodType = (restaurant: any, foodType: string) => {
+    const haystack = normalizeFoodTypeText([
+        restaurant.name,
+        restaurant.address,
+        restaurant.cuisine_type,
+        restaurant.website,
+    ]
+        .filter(Boolean)
+        .join(' '));
+
+    const needle = normalizeFoodTypeText(foodType);
+
+    if (!needle || !haystack) {
+        return false;
+    }
+
+    return haystack.includes(needle);
+};
+
 export const locationHandler = async (ctx: SessionContext) => {
     const message = ctx.message as { location?: Location } | undefined;
     const location = message?.location;
@@ -73,12 +179,12 @@ export const locationHandler = async (ctx: SessionContext) => {
 
     try {
         nearbyRestaurants = await getNearbyRestaurants(location);
-        
-        // Filter by food type if selected
+
         if (foodType) {
-            nearbyRestaurants = nearbyRestaurants.filter((r: any) => 
-                r.cuisine_type && r.cuisine_type.toLowerCase().includes(foodType.toLowerCase())
-            );
+            const matchedRestaurants = nearbyRestaurants.filter((restaurant: any) => matchesFoodType(restaurant, foodType));
+            if (matchedRestaurants.length > 0) {
+                nearbyRestaurants = matchedRestaurants;
+            }
         }
     } catch (error) {
         console.error('Nearby restaurants fetch failed:', error);
@@ -91,15 +197,45 @@ export const locationHandler = async (ctx: SessionContext) => {
         return;
     }
 
-    const responseMessage = nearbyRestaurants
-        .map((restaurant: any, index) => {
-            const addressPart = restaurant.address ? `\n   📍 ${restaurant.address}` : '';
-            return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
-        })
-        .join('\n');
+    const restaurantsWithImages = nearbyRestaurants
+        .map((restaurant: any) => ({
+            ...restaurant,
+            imageUrl: resolveImageUrl(restaurant.image_url),
+        }))
+        .filter((restaurant: any) => restaurant.imageUrl);
 
-    await ctx.replyWithHTML(
-        (msgs.header[language as keyof typeof msgs.header] || msgs.header.en) + responseMessage +
-        (msgs.footer[language as keyof typeof msgs.footer] || msgs.footer.en),
-    );
+    if (restaurantsWithImages.length === 0) {
+        await ctx.replyWithHTML(
+            (msgs.header[language as keyof typeof msgs.header] || msgs.header.en) +
+            nearbyRestaurants
+                .map((restaurant: any, index) => {
+                    const addressPart = restaurant.address ? `\n   📍 ${restaurant.address}` : '';
+                    return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
+                })
+                .join('\n') +
+            (msgs.footer[language as keyof typeof msgs.footer] || msgs.footer.en),
+        );
+        return;
+    }
+
+    for (let index = 0; index < Math.min(5, restaurantsWithImages.length); index += 1) {
+        const restaurant = restaurantsWithImages[index];
+        const replyOptions = {
+            caption: buildRestaurantCaption(restaurant, index),
+            parse_mode: 'HTML' as const,
+            ...((index === Math.min(5, restaurantsWithImages.length) - 1)
+                ? { reply_markup: mainKeyboard().reply_markup }
+                : {}),
+        };
+
+        try {
+            const photoInput = await buildPhotoInput(restaurant.imageUrl, restaurant.name);
+            await ctx.replyWithPhoto(photoInput, replyOptions);
+        } catch (error) {
+            console.error(`Failed to send photo for restaurant ${restaurant.name}:`, error);
+            await ctx.replyWithHTML(replyOptions.caption, index === Math.min(5, restaurantsWithImages.length) - 1
+                ? { reply_markup: mainKeyboard().reply_markup, parse_mode: 'HTML' }
+                : { parse_mode: 'HTML' });
+        }
+    }
 };

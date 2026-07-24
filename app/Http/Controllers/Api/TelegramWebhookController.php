@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TelegramWebhookController extends Controller
 {
@@ -55,8 +56,6 @@ class TelegramWebhookController extends Controller
             if ($languageCode) {
                 $state['language'] = $languageCode;
                 unset($state['food_type']);
-                unset($state['restaurants']);
-                unset($state['restaurant_index']);
                 $this->setState($chatId, $state);
                 $this->sendChooseFoodTypeMessage($chatId, $languageCode);
                 return response()->json(['ok' => true]);
@@ -117,33 +116,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // Handle navigation buttons (Previous/Next)
         $lang = $state['language'] ?? 'uz';
-        if (!empty($state['restaurants']) && is_array($state['restaurants'])) {
-            $prevTexts = ['◀️ Oldingi', '⬅️ Previous', '← Назад', '← Артқа', '← Мурда', '← Қабли', '← Önceki'];
-            $nextTexts = ['▶️ Keyingi', '➡️ Next', '→ Далее', '→ Келесі', '→ Кириме', '→ Навбати', '→ Sonraki'];
-            
-            if (in_array($text, $prevTexts, true)) {
-                $prevIndex = ($state['restaurant_index'] ?? 0) - 1;
-                if ($prevIndex >= 0) {
-                    $state['restaurant_index'] = $prevIndex;
-                    $this->setState($chatId, $state);
-                    $this->sendRestaurantCard($chatId, $lang, $prevIndex, count($state['restaurants']));
-                }
-                return response()->json(['ok' => true]);
-            }
-            
-            if (in_array($text, $nextTexts, true)) {
-                $nextIndex = ($state['restaurant_index'] ?? 0) + 1;
-                if ($nextIndex < count($state['restaurants'])) {
-                    $state['restaurant_index'] = $nextIndex;
-                    $this->setState($chatId, $state);
-                    $this->sendRestaurantCard($chatId, $lang, $nextIndex, count($state['restaurants']));
-                }
-                return response()->json(['ok' => true]);
-            }
-        }
-
         $messages = $this->messages($lang);
 
         $this->sendText(
@@ -237,18 +210,16 @@ class TelegramWebhookController extends Controller
                 $distance = round($earthRadius * $c, 1);
 
                 return [
-                    'id' => $restaurant->id,
                     'name' => $restaurant->name,
                     'address' => $restaurant->location?->address,
                     'distance' => $distance,
                     'latitude' => (float) $restaurant->location->latitude,
                     'longitude' => (float) $restaurant->location->longitude,
-                    'image_path' => $restaurant->image_path,
-                    'phone' => $restaurant->phone,
-                    'website' => $restaurant->website,
+                    'image_url' => $this->resolveRestaurantImageUrl($restaurant),
                 ];
             })
             ->sortBy('distance')
+            ->filter(fn ($restaurant) => !empty($restaurant['image_url']))
             ->take(5)
             ->values();
 
@@ -259,109 +230,20 @@ class TelegramWebhookController extends Controller
             return;
         }
 
-        // Store restaurants array in state
-        $state = $this->getState($chatId);
-        $state['restaurants'] = $restaurants->toArray();
-        $state['restaurant_index'] = 0;
-        $this->setState($chatId, $state);
+        $media = $restaurants->values()->map(function ($restaurant, $index) {
+            return [
+                'type' => 'photo',
+                'media' => $restaurant['image_url'],
+                'caption' => $this->restaurantCaption($restaurant, $index),
+                'parse_mode' => 'HTML',
+            ];
+        })->all();
 
-        // Show first restaurant
-        $this->sendRestaurantCard($chatId, $lang, 0, count($restaurants));
-    }
+        $this->sendMediaGroup($chatId, $media);
 
-    private function sendRestaurantCard(int $chatId, string $lang, int $index, int $total): void
-    {
-        $state = $this->getState($chatId);
-        if (empty($state['restaurants']) || !isset($state['restaurants'][$index])) {
-            return;
-        }
-
-        $restaurant = $state['restaurants'][$index];
-        $messages = $this->messages($lang);
-
-        $rankEmoji = match ($index) {
-            0 => '🥇',
-            1 => '🥈',
-            2 => '🥉',
-            default => '•',
-        };
-
-        $caption = "{$rankEmoji} <b>{$restaurant['name']}</b>\n\n";
-        
-        if (!empty($restaurant['address'])) {
-            $caption .= "📍 <b>" . $messages['address'] . ":</b> {$restaurant['address']}\n";
-        }
-        
-        $caption .= "📏 <b>" . $messages['distance'] . ":</b> {$restaurant['distance']} km\n";
-        
-        if (!empty($restaurant['phone'])) {
-            $caption .= "📞 <b>" . $messages['phone'] . ":</b> {$restaurant['phone']}\n";
-        }
-        
-        if (!empty($restaurant['website'])) {
-            $caption .= "🌐 <b>" . $messages['website'] . ":</b> {$restaurant['website']}\n";
-        }
-
-        $mapsUrl = "https://maps.google.com/?q={$restaurant['latitude']},{$restaurant['longitude']}&z=16";
-        $caption .= "\n🧭 <a href=\"{$mapsUrl}\">" . $messages['view_on_map'] . "</a>";
-        
-        $caption .= "\n\n(" . ($index + 1) . "/" . $total . ")";
-
-        $options = [
-            'parse_mode' => 'HTML',
-            'reply_markup' => $this->restaurantNavigationMarkup($lang, $index, $total),
-        ];
-
-        // Send with image if available
-        if (!empty($restaurant['image_path'])) {
-            $this->sendPhoto($chatId, $restaurant['image_path'], $caption, $options);
-        } else {
-            $this->sendText($chatId, $caption, $options);
-        }
-    }
-
-    private function sendPhoto(int $chatId, string $photoUrl, string $caption, array $options = []): void
-    {
-        $token = config('services.telegram.bot_token');
-
-        if (empty($token)) {
-            Log::warning('Telegram webhook: TELEGRAM_BOT_TOKEN topilmadi.');
-            return;
-        }
-
-        $payload = array_merge([
-            'chat_id' => $chatId,
-            'photo' => $photoUrl,
-            'caption' => $caption,
-        ], $options);
-
-        if (isset($payload['reply_markup']) && is_array($payload['reply_markup'])) {
-            $payload['reply_markup'] = json_encode($payload['reply_markup'], JSON_UNESCAPED_UNICODE);
-        }
-
-        Http::asForm()->post("https://api.telegram.org/bot{$token}/sendPhoto", $payload);
-    }
-
-    private function restaurantNavigationMarkup(string $lang, int $index, int $total): array
-    {
-        $messages = $this->messages($lang);
-        $buttons = [];
-
-        if ($index > 0) {
-            $buttons[] = ['text' => '◀️ ' . $messages['previous'], 'callback_data' => 'prev'];
-        }
-
-        if ($index < $total - 1) {
-            $buttons[] = ['text' => '▶️ ' . $messages['next'], 'callback_data' => 'next'];
-        }
-
-        $buttons[] = ['text' => '🏠 ' . $messages['main_menu'], 'callback_data' => 'menu'];
-
-        return [
-            'inline_keyboard' => [
-                $buttons,
-            ],
-        ];
+        $this->sendText($chatId, $messages['search_again'], [
+            'reply_markup' => $this->mainKeyboardMarkup($lang),
+        ]);
     }
 
     private function sendText(int $chatId, string $text, array $options = []): void
@@ -383,6 +265,104 @@ class TelegramWebhookController extends Controller
         }
 
         Http::asForm()->post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
+    }
+
+    private function sendPhoto(int $chatId, string $photoUrl, array $options = []): void
+    {
+        $token = config('services.telegram.bot_token');
+
+        if (empty($token)) {
+            Log::warning('Telegram webhook: TELEGRAM_BOT_TOKEN topilmadi.');
+            return;
+        }
+
+        $payload = array_merge([
+            'chat_id' => $chatId,
+            'photo' => $photoUrl,
+        ], array_filter($options, fn ($value) => $value !== null));
+
+        if (isset($payload['reply_markup']) && is_array($payload['reply_markup'])) {
+            $payload['reply_markup'] = json_encode($payload['reply_markup'], JSON_UNESCAPED_UNICODE);
+        }
+
+        Http::asForm()->post("https://api.telegram.org/bot{$token}/sendPhoto", $payload);
+    }
+
+    private function sendMediaGroup(int $chatId, array $media): void
+    {
+        if (empty($media)) {
+            return;
+        }
+
+        $token = config('services.telegram.bot_token');
+
+        if (empty($token)) {
+            Log::warning('Telegram webhook: TELEGRAM_BOT_TOKEN topilmadi.');
+            return;
+        }
+
+        Http::asForm()->post("https://api.telegram.org/bot{$token}/sendMediaGroup", [
+            'chat_id' => $chatId,
+            'media' => json_encode(array_values($media), JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    private function restaurantCaption(array $restaurant, int $index): string
+    {
+        $rankEmoji = match ($index) {
+            0 => '🥇',
+            1 => '🥈',
+            2 => '🥉',
+            default => '🍽️',
+        };
+
+        $name = e((string) ($restaurant['name'] ?? 'Restaurant'));
+        $distance = e((string) ($restaurant['distance'] ?? '0'));
+        $addressLine = !empty($restaurant['address']) ? "\n📍 " . e((string) $restaurant['address']) : '';
+        $mapsUrl = "https://maps.google.com/?q={$restaurant['latitude']},{$restaurant['longitude']}";
+
+        return "{$rankEmoji} <b>{$name}</b>\n📏 {$distance} km{$addressLine}\n🧭 <a href=\"{$mapsUrl}\">Xaritada ko‘rish</a>";
+    }
+
+    private function resolveRestaurantImageUrl(Restaurant $restaurant): ?string
+    {
+        $candidates = [
+            $restaurant->images->first()?->url,
+            $restaurant->image_path,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $resolved = $this->resolvePublicImageUrl($candidate);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolvePublicImageUrl(?string $path): ?string
+    {
+        if (!is_string($path) || trim($path) === '') {
+            return null;
+        }
+
+        $trimmed = trim($path);
+
+        if (Str::startsWith($trimmed, ['http://', 'https://'])) {
+            return $trimmed;
+        }
+
+        if (Str::startsWith($trimmed, '//')) {
+            return 'https:' . $trimmed;
+        }
+
+        $clean = ltrim($trimmed, '/');
+        if (Str::startsWith($clean, 'storage/')) {
+            return url('/' . $clean);
+        }
+
+        return url('/storage/' . $clean);
     }
 
     private function languageKeyboardMarkup(): array
@@ -505,14 +485,6 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Nearby restaurants:</b>',
                 'search_again' => 'Share location again to search again.',
                 'unknown' => '🤖 Use buttons below: language, food type, or location.',
-                'address' => 'Address',
-                'distance' => 'Distance',
-                'phone' => 'Phone',
-                'website' => 'Website',
-                'view_on_map' => 'View on map',
-                'previous' => 'Previous',
-                'next' => 'Next',
-                'main_menu' => 'Main menu',
             ],
             'ru' => [
                 'welcome' => "🍽️ <b>Добро пожаловать!</b>\n\n1) Выберите язык\n2) Выберите тип еды\n3) Отправьте локацию",
@@ -525,34 +497,18 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Ближайшие рестораны:</b>',
                 'search_again' => 'Чтобы искать снова, отправьте локацию снова.',
                 'unknown' => '🤖 Используйте кнопки: язык, тип еды, локация.',
-                'address' => 'Адрес',
-                'distance' => 'Расстояние',
-                'phone' => 'Телефон',
-                'website' => 'Сайт',
-                'view_on_map' => 'Посмотреть на карте',
-                'previous' => 'Назад',
-                'next' => 'Далее',
-                'main_menu' => 'Главное меню',
             ],
             'uz' => [
                 'welcome' => "🍽️ <b>Xush kelibsiz!</b>\n\n1) Tilni tanlang\n2) Ovqat turini tanlang\n3) Joylashuv yuboring",
                 'choose_language' => '🌐 <b>Tilni tanlang:</b>',
-                'choose_food_type' => "🍽️ <b>Ovqat turini tanlang:</b>\nYoki o'zingiz yozing.",
-                'ready_for_location' => "✅ Zo'r, endi joylashuvingizni yuboring.",
+                'choose_food_type' => '🍽️ <b>Ovqat turini tanlang:</b>\nYoki o\'zingiz yozing.',
+                'ready_for_location' => '✅ Zo‘r, endi joylashuvingizni yuboring.',
                 'selected_food' => '🍽️ Tanlangan ovqat turi: ',
                 'share_location' => '📍 Joylashuv yuborish',
                 'not_found' => '😕 Tanlangan ovqat turi uchun yaqin restoran topilmadi.',
                 'nearby_header' => '📌 <b>Yaqin restoranlar:</b>',
                 'search_again' => 'Qayta qidirish uchun joylashuvni yana yuboring.',
                 'unknown' => '🤖 Pastdagi tugmalardan foydalaning: til, ovqat turi, joylashuv.',
-                'address' => 'Manzil',
-                'distance' => 'Masofa',
-                'phone' => 'Telefon',
-                'website' => 'Sayt',
-                'view_on_map' => "Xaritada ko'rish",
-                'previous' => 'Oldingi',
-                'next' => 'Keyingi',
-                'main_menu' => 'Bosh menyu',
             ],
             'kk' => [
                 'welcome' => "🍽️ <b>Қош келдіңіз!</b>\n\n1) Тілді таңдаңыз\n2) Тағам түрін таңдаңыз\n3) Орналасқан жерді жіберіңіз",
@@ -565,14 +521,6 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Жақын ресторандар:</b>',
                 'search_again' => 'Қайта іздеу үшін орналасқан жерді қайта жіберіңіз.',
                 'unknown' => '🤖 Төмендегі батырмаларды қолданыңыз: тіл, тағам түрі, орналасқан жер.',
-                'address' => 'Мекенжайы',
-                'distance' => 'Қашықтық',
-                'phone' => 'Телефон',
-                'website' => 'Веб-сайт',
-                'view_on_map' => 'Картада қарау',
-                'previous' => 'Артқа',
-                'next' => 'Келесі',
-                'main_menu' => 'Негізгі мәзір',
             ],
             'ky' => [
                 'welcome' => "🍽️ <b>Кош келиңиз!</b>\n\n1) Тилди тандаңыз\n2) Тамак түрүн тандаңыз\n3) Жайгашкан жерди жөнөтүңүз",
@@ -585,14 +533,6 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Жакын ресторандар:</b>',
                 'search_again' => 'Кайра издөө үчүн жайгашкан жерди кайра жөнөтүңүз.',
                 'unknown' => '🤖 Төмөнкү баскычтарды колдонуңуз: тил, тамак түрү, жайгашкан жер.',
-                'address' => 'Адреси',
-                'distance' => 'Аралык',
-                'phone' => 'Телефон',
-                'website' => 'Веб-сайты',
-                'view_on_map' => 'Картада көрүнүз',
-                'previous' => 'Мурда',
-                'next' => 'Кириме',
-                'main_menu' => 'Башкы меню',
             ],
             'tg' => [
                 'welcome' => "🍽️ <b>Хуш омадед!</b>\n\n1) Забонро интихоб кунед\n2) Навъи хӯрокро интихоб кунед\n3) Маконро фиристонед",
@@ -605,14 +545,6 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Ресторанҳои наздик:</b>',
                 'search_again' => 'Барои ҷустуҷӯи дубора маконро боз фиристонед.',
                 'unknown' => '🤖 Аз тугмаҳо истифода баред: забон, навъи хӯрок, макон.',
-                'address' => 'Суроғаи',
-                'distance' => 'Фосила',
-                'phone' => 'Телефон',
-                'website' => 'Вебсайт',
-                'view_on_map' => 'Дар харита бубинед',
-                'previous' => 'Қабли',
-                'next' => 'Навбати',
-                'main_menu' => 'Менюи асосӣ',
             ],
             'tr' => [
                 'welcome' => "🍽️ <b>Hoş geldiniz!</b>\n\n1) Dil seçin\n2) Yemek türü seçin\n3) Konum paylaşın",
@@ -625,14 +557,6 @@ class TelegramWebhookController extends Controller
                 'nearby_header' => '📌 <b>Yakındaki restoranlar:</b>',
                 'search_again' => 'Tekrar aramak için konumu tekrar paylaşın.',
                 'unknown' => '🤖 Aşağıdaki düğmeleri kullanın: dil, yemek türü, konum.',
-                'address' => 'Adres',
-                'distance' => 'Mesafe',
-                'phone' => 'Telefon',
-                'website' => 'Website',
-                'view_on_map' => 'Haritada görüntüle',
-                'previous' => 'Önceki',
-                'next' => 'Sonraki',
-                'main_menu' => 'Ana menü',
             ],
         ];
 

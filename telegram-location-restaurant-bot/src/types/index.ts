@@ -11,6 +11,9 @@ export interface Restaurant {
     location: Location;
     distance: number;
     cuisine_type?: string;
+    phone?: string;
+    website?: string | null;
+    image_url?: string | null;
 }
 
 export interface User {

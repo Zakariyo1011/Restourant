@@ -8,9 +8,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.locationHandler = void 0;
+const axios_1 = __importDefault(require("axios"));
 const restaurant_service_1 = require("../../services/restaurant.service");
+const config_1 = require("../../config");
+const main_keyboard_1 = require("../keyboards/main.keyboard");
 const getMessages = (language) => ({
     requesting: {
         en: 'Please share your location.',
@@ -58,6 +64,89 @@ const getMessages = (language) => ({
         tr: '\n\nTekrar aramak için konumunuzu tekrar paylaşın.',
     },
 });
+const resolveImageUrl = (value) => {
+    if (!value) {
+        return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+    const apiOrigin = config_1.config.API_BASE_URL.replace(/\/api\/?$/, '');
+    const publicAssetOrigin = (config_1.config.PUBLIC_ASSET_BASE_URL || apiOrigin).replace(/\/$/, '');
+    if (/^https?:\/\//i.test(trimmed)) {
+        try {
+            const parsed = new URL(trimmed);
+            const isLoopbackHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+            if (!isLoopbackHost) {
+                return trimmed;
+            }
+            return `${publicAssetOrigin}${parsed.pathname}${parsed.search}`;
+        }
+        catch (_a) {
+            return trimmed;
+        }
+    }
+    const clean = trimmed.replace(/^\/+/, '');
+    return clean.startsWith('storage/')
+        ? `${publicAssetOrigin}/${clean}`
+        : `${publicAssetOrigin}/storage/${clean}`;
+};
+const isLoopbackUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+    }
+    catch (_a) {
+        return false;
+    }
+};
+const buildPhotoInput = (imageUrl, restaurantName) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!isLoopbackUrl(imageUrl)) {
+        return imageUrl;
+    }
+    const response = yield axios_1.default.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+    });
+    const safeName = restaurantName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'restaurant';
+    return {
+        source: Buffer.from(response.data),
+        filename: `${safeName}.jpg`,
+    };
+});
+const buildRestaurantCaption = (restaurant, index) => {
+    const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🍽️';
+    const addressPart = restaurant.address ? `\n📍 <b>Manzil:</b> ${restaurant.address}` : '';
+    const phonePart = restaurant.phone ? `\n📞 <b>Telefon:</b> ${restaurant.phone}` : '';
+    const websitePart = restaurant.website ? `\n🌐 <a href="${restaurant.website}">Sayt</a>` : '';
+    const mapsUrl = `https://maps.google.com/?q=${restaurant.location.latitude},${restaurant.location.longitude}`;
+    return `${rankEmoji} <b>${restaurant.name}</b>\n📏 <b>Masofa:</b> ${restaurant.distance.toFixed(1)} km${addressPart}${phonePart}${websitePart}\n🧭 <a href="${mapsUrl}">Xaritada ko'rish</a>`;
+};
+const normalizeFoodTypeText = (value) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+const matchesFoodType = (restaurant, foodType) => {
+    const haystack = normalizeFoodTypeText([
+        restaurant.name,
+        restaurant.address,
+        restaurant.cuisine_type,
+        restaurant.website,
+    ]
+        .filter(Boolean)
+        .join(' '));
+    const needle = normalizeFoodTypeText(foodType);
+    if (!needle || !haystack) {
+        return false;
+    }
+    return haystack.includes(needle);
+};
 const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const message = ctx.message;
@@ -72,9 +161,11 @@ const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
     let nearbyRestaurants = [];
     try {
         nearbyRestaurants = yield (0, restaurant_service_1.getNearbyRestaurants)(location);
-        // Filter by food type if selected
         if (foodType) {
-            nearbyRestaurants = nearbyRestaurants.filter((r) => r.cuisine_type && r.cuisine_type.toLowerCase().includes(foodType.toLowerCase()));
+            const matchedRestaurants = nearbyRestaurants.filter((restaurant) => matchesFoodType(restaurant, foodType));
+            if (matchedRestaurants.length > 0) {
+                nearbyRestaurants = matchedRestaurants;
+            }
         }
     }
     catch (error) {
@@ -86,13 +177,35 @@ const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
         yield ctx.reply(msgs.notFound[language] || msgs.notFound.en);
         return;
     }
-    const responseMessage = nearbyRestaurants
-        .map((restaurant, index) => {
-        const addressPart = restaurant.address ? `\n   📍 ${restaurant.address}` : '';
-        return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
-    })
-        .join('\n');
-    yield ctx.replyWithHTML((msgs.header[language] || msgs.header.en) + responseMessage +
-        (msgs.footer[language] || msgs.footer.en));
+    const restaurantsWithImages = nearbyRestaurants
+        .map((restaurant) => (Object.assign(Object.assign({}, restaurant), { imageUrl: resolveImageUrl(restaurant.image_url) })))
+        .filter((restaurant) => restaurant.imageUrl);
+    if (restaurantsWithImages.length === 0) {
+        yield ctx.replyWithHTML((msgs.header[language] || msgs.header.en) +
+            nearbyRestaurants
+                .map((restaurant, index) => {
+                const addressPart = restaurant.address ? `\n   📍 ${restaurant.address}` : '';
+                return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
+            })
+                .join('\n') +
+            (msgs.footer[language] || msgs.footer.en));
+        return;
+    }
+    for (let index = 0; index < Math.min(5, restaurantsWithImages.length); index += 1) {
+        const restaurant = restaurantsWithImages[index];
+        const replyOptions = Object.assign({ caption: buildRestaurantCaption(restaurant, index), parse_mode: 'HTML' }, ((index === Math.min(5, restaurantsWithImages.length) - 1)
+            ? { reply_markup: (0, main_keyboard_1.mainKeyboard)().reply_markup }
+            : {}));
+        try {
+            const photoInput = yield buildPhotoInput(restaurant.imageUrl, restaurant.name);
+            yield ctx.replyWithPhoto(photoInput, replyOptions);
+        }
+        catch (error) {
+            console.error(`Failed to send photo for restaurant ${restaurant.name}:`, error);
+            yield ctx.replyWithHTML(replyOptions.caption, index === Math.min(5, restaurantsWithImages.length) - 1
+                ? { reply_markup: (0, main_keyboard_1.mainKeyboard)().reply_markup, parse_mode: 'HTML' }
+                : { parse_mode: 'HTML' });
+        }
+    }
 });
 exports.locationHandler = locationHandler;

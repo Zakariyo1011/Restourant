@@ -32,7 +32,7 @@ const getNearbyRestaurants = (userLocation) => __awaiter(void 0, void 0, void 0,
     const restaurants = payload
         .filter((item) => item.location && typeof item.location.latitude === 'number' && typeof item.location.longitude === 'number')
         .map((item) => {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         const location = {
             latitude: item.location.latitude,
             longitude: item.location.longitude,
@@ -45,6 +45,9 @@ const getNearbyRestaurants = (userLocation) => __awaiter(void 0, void 0, void 0,
             address: (_e = (_c = item.address) !== null && _c !== void 0 ? _c : (_d = item.location) === null || _d === void 0 ? void 0 : _d.address) !== null && _e !== void 0 ? _e : '',
             location,
             distance: typeof item.distance === 'number' ? item.distance : computedDistance,
+            phone: (_f = item.phone) !== null && _f !== void 0 ? _f : undefined,
+            website: (_g = item.website) !== null && _g !== void 0 ? _g : null,
+            image_url: (_h = item.image_url) !== null && _h !== void 0 ? _h : null,
         };
     })
         .sort((first, second) => first.distance - second.distance)

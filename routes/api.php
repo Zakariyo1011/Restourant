@@ -54,7 +54,7 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $limit = isset($validated['limit']) ? (int) $validated['limit'] : 5;
 
     $restaurants = \App\Models\Restaurant::query()
-        ->with('location')
+        ->with(['location', 'images'])
         ->where('is_active', true)
         ->whereHas('location')
         ->get()
@@ -68,6 +68,17 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
             $c = 2 * atan2(sqrt($a), sqrt(1-$a));
             $distance = round($R * $c, 1);
 
+            $imageUrl = $restaurant->image_path;
+            if (empty($imageUrl) && $restaurant->relationLoaded('images')) {
+                $imageUrl = $restaurant->images->first()?->url;
+            }
+
+            if (is_string($imageUrl) && $imageUrl !== '' && !preg_match('/^https?:\/\//i', $imageUrl)) {
+                $imageUrl = str_starts_with($imageUrl, '/storage/')
+                    ? url($imageUrl)
+                    : url('/storage/' . ltrim($imageUrl, '/'));
+            }
+
             return [
                 'id' => $restaurant->id,
                 'name' => $restaurant->name,
@@ -76,6 +87,8 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
                 'city' => $restaurant->city,
                 'cuisine_type' => $restaurant->cuisine_type,
                 'price_range' => $restaurant->price_range,
+                'website' => $restaurant->website,
+                'image_url' => $imageUrl,
                 'distance' => $distance,
                 'location' => [
                     'latitude' => (float) $restaurant->location->latitude,

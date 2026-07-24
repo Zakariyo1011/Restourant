@@ -7,6 +7,9 @@ type RestaurantApiResponse = Array<{
     id: number | string;
     name: string;
     address?: string | null;
+    phone?: string | null;
+    website?: string | null;
+    image_url?: string | null;
     distance?: number;
     location?: {
         latitude: number;
@@ -55,6 +58,9 @@ export const getNearbyRestaurants = async (userLocation: Location): Promise<Rest
                 address: item.address ?? item.location?.address ?? '',
                 location,
                 distance: typeof item.distance === 'number' ? item.distance : computedDistance,
+                phone: item.phone ?? undefined,
+                website: item.website ?? null,
+                image_url: item.image_url ?? null,
             } as Restaurant;
         })
         .sort((first, second) => first.distance - second.distance)
