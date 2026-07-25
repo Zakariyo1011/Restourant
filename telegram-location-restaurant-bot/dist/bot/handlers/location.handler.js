@@ -163,7 +163,13 @@ const buildRestaurantCaption = (restaurant, index, language, msgs) => {
     const mapLabel = msgs.caption.map[language] || msgs.caption.map.en;
     const addressPart = restaurant.address ? `\n${addressLabel} ${restaurant.address}` : '';
     const phonePart = restaurant.phone ? `\n${phoneLabel} ${restaurant.phone}` : '';
-    const mapsUrl = `https://maps.google.com/?q=${restaurant.location.latitude},${restaurant.location.longitude}`;
+    const searchQuery = [restaurant.name, restaurant.address]
+        .filter(Boolean)
+        .join(', ')
+        .trim();
+    const mapsUrl = searchQuery
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`
+        : `https://www.google.com/maps/search/?api=1&query=${restaurant.location.latitude},${restaurant.location.longitude}`;
     return `${index + 1}) <b>${restaurant.name}</b>\n${distanceLabel} ${restaurant.distance.toFixed(1)} km${addressPart}${phonePart}\n<a href="${mapsUrl}">${mapLabel}</a>`;
 };
 const normalizeFoodTypeText = (value) => value
