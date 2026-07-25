@@ -30,8 +30,17 @@ bot.action(/^food_/, handleFoodTypeSelection);
 
 bot.on('text', (ctx) =>
 	ctx.reply(
-		'Iltimos, pastdagi tugmalardan foydalaning yoki /language buyrug\'ini ishlating.',
-		mainKeyboard(),
+		({
+			en: 'Please use the buttons below or use /language command.',
+			ru: 'Пожалуйста, используйте кнопки ниже или команду /language.',
+			uz: 'Iltimos, pastdagi tugmalardan foydalaning yoki /language buyrug\'ini ishlating.',
+			kk: 'Төмендегі батырмаларды пайдаланыңыз немесе /language командасын қолданыңыз.',
+			ky: 'Төмөнкү баскычтарды колдонуңуз же /language буйругун жазыңыз.',
+			tg: 'Лутфан тугмаҳои поёнро истифода баред ё фармони /language-ро нависед.',
+			tr: 'Lütfen aşağıdaki butonları kullanın veya /language komutunu yazın.',
+		} as Record<string, string>)[(ctx as any).session?.language || 'en'] ||
+			'Please use the buttons below or use /language command.',
+		mainKeyboard((ctx as any).session?.language || 'en'),
 	),
 );
 

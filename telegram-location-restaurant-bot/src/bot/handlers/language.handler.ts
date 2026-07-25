@@ -3,6 +3,7 @@ import { Markup } from 'telegraf';
 import axios from 'axios';
 import { config } from '../../config';
 import { Language } from '../../types';
+import { mainKeyboard } from '../keyboards/main.keyboard';
 
 interface SessionContext extends Context {
     session?: {
@@ -33,7 +34,7 @@ export const languageHandler = async (ctx: SessionContext) => {
             ])
         );
 
-        return ctx.reply('🌐 Tilni tanlang / Select Language:', keyboard);
+        return ctx.reply('Tilni tanlang / Select language:', keyboard);
     } catch (error) {
         console.error('Error fetching languages:', error);
         return ctx.reply('❌ Error loading languages. Please try again.');
@@ -55,17 +56,22 @@ export const handleLanguageSelection = async (ctx: SessionContext) => {
         ensureSession(ctx).language = languageCode;
 
         const messages: Record<string, string> = {
-            en: '✅ English selected',
-            ru: '✅ Русский выбран',
-            uz: '✅ O\'zbek tanlandi',
-            kk: '✅ Қазақша таңдалды',
-            ky: '✅ Кыргызча тандалды',
-            tg: '✅ Тоҷикӣ танбор шуд',
-            tr: '✅ Türkçe seçildi',
+            en: 'English selected',
+            ru: 'Русский выбран',
+            uz: 'O\'zbek tanlandi',
+            kk: 'Қазақша таңдалды',
+            ky: 'Кыргызча тандалды',
+            tg: 'Тоҷикӣ интихоб шуд',
+            tr: 'Türkçe seçildi',
         };
 
         await ctx.editMessageText(
-            messages[languageCode] || '✅ Language selected'
+            messages[languageCode] || 'Language selected'
+        );
+
+        await ctx.reply(
+            messages[languageCode] || 'Language selected',
+            mainKeyboard(languageCode),
         );
 
         // Show food type selection
@@ -93,23 +99,23 @@ export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string
         );
 
         const messages: Record<string, string> = {
-            en: '🍽️ Select food type:',
-            ru: '🍽️ Выберите тип кухни:',
-            uz: '🍽️ Ovqat turini tanlang:',
-            kk: '🍽️ Тағам түрін таңдаңыз:',
-            ky: '🍽️ Тамактын түрүн тандаңыз:',
-            tg: '🍽️ Навъи хӯрок интихоб кунед:',
-            tr: '🍽️ Yemek türünü seçin:',
+            en: 'Select food type:',
+            ru: 'Выберите тип кухни:',
+            uz: 'Ovqat turini tanlang:',
+            kk: 'Тағам түрін таңдаңыз:',
+            ky: 'Тамактын түрүн тандаңыз:',
+            tg: 'Навъи хӯрокро интихоб кунед:',
+            tr: 'Yemek türünü seçin:',
         };
 
         if (ctx.callbackQuery) {
             await ctx.editMessageText(
-                messages[lang] || '🍽️ Select food type:',
+                messages[lang] || 'Select food type:',
                 keyboard
             );
         } else {
             await ctx.reply(
-                messages[lang] || '🍽️ Select food type:',
+                messages[lang] || 'Select food type:',
                 keyboard
             );
         }
@@ -136,13 +142,13 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
         const lang = ctx.session?.language || 'en';
 
         const messages: Record<string, string> = {
-            en: '✅ Food type selected. Now share your location to find restaurants.',
-            ru: '✅ Тип кухни выбран. Теперь поделитесь своим местоположением.',
-            uz: '✅ Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
-            kk: '✅ Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
-            ky: '✅ Тамак түрү тандалды. Эми жайгашкан жерин багы.',
-            tg: '✅ Навъи хӯрок интихоб шуд. Ҳоло мамлакати худро ба куллам бугузорӣ кунед.',
-            tr: '✅ Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
+            en: 'Food type selected. Now share your location to find restaurants.',
+            ru: 'Тип кухни выбран. Теперь поделитесь своим местоположением.',
+            uz: 'Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
+            kk: 'Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
+            ky: 'Тамак түрү тандалды. Эми жайгашкан жериңизди бөлүшүңүз.',
+            tg: 'Навъи хӯрок интихоб шуд. Ҳоло ҷойгиршавии худро ирсол кунед.',
+            tr: 'Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
         };
 
         await ctx.editMessageText(

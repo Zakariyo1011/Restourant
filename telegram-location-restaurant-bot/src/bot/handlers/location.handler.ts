@@ -19,7 +19,7 @@ const getMessages = (language: string) => ({
         uz: 'Iltimos, joylashuvingizni ulashing.',
         kk: 'Орналасқан жерін бөлісіңіз.',
         ky: 'Жайгашкан жеринизди бөлүшүңүз.',
-        tg: 'Мамлакати худро бугузорӣ кунед.',
+        tg: 'Лутфан ҷойи ояди худро бахш кунед.',
         tr: 'Lütfen konumunuzu paylaşın.',
     },
     fetchError: {
@@ -27,7 +27,7 @@ const getMessages = (language: string) => ({
         ru: 'Ошибка при получении ресторанов. Попробуйте позже.',
         uz: 'Restoranlarni olishda xatolik. Keyinroq qayta urinib ko\'ring.',
         kk: 'Рестораны алуда қате. Кейінірек қайта көруге тырысыңыз.',
-        ky: 'Рестораны алуу чеберчилигинде каталык. Кечиктирип кайра аракет кылыңыз.',
+        ky: 'Ресторанды алуу сыноосунда ката. Кийинчерээк кайталап көрүңүз.',
         tg: 'Хатогӣ дар гирифтани рестораниҳо. Дубора кӯшиш кунед.',
         tr: 'Restoranları alırken hata. Lütfen tekrar deneyin.',
     },
@@ -36,18 +36,18 @@ const getMessages = (language: string) => ({
         ru: 'Рестораны поблизости не найдены.',
         uz: 'Yaqin atrofda restoran topilmadi.',
         kk: 'Жақын аймақта ресторан табылмады.',
-        ky: 'Жакын жерде ресторан табылган жок.',
+        ky: 'Жакынчасы ресторан табылган жок.',
         tg: 'Рестораниҳо наздик найм нашуданд.',
         tr: 'Yakında restoran bulunamadı.',
     },
     header: {
-        en: '📌 <b>Nearby restaurants:</b>\n\n',
-        ru: '📌 <b>Рестораны поблизости:</b>\n\n',
-        uz: '📌 <b>Yaqin restoranlar:</b>\n\n',
-        kk: '📌 <b>Жақын рестораны:</b>\n\n',
-        ky: '📌 <b>Жакын рестораны:</b>\n\n',
-        tg: '📌 <b>Рестораниҳои наздик:</b>\n\n',
-        tr: '📌 <b>Yakındaki restoranlar:</b>\n\n',
+        en: '<b>Nearby restaurants:</b>\n\n',
+        ru: '<b>Рестораны поблизости:</b>\n\n',
+        uz: '<b>Yaqin restoranlar:</b>\n\n',
+        kk: '<b>Жақын рестораны:</b>\n\n',
+        ky: '<b>Жакын рестораны:</b>\n\n',
+        tg: '<b>Рестораниҳои наздик:</b>\n\n',
+        tr: '<b>Yakındaki restoranlar:</b>\n\n',
     },
     footer: {
         en: '\n\nShare your location again to search again.',
@@ -57,6 +57,44 @@ const getMessages = (language: string) => ({
         ky: '\n\nКайра издөө үчүн жайгашкан жеринизди дагы бир жолу бөлүшүңүз.',
         tg: '\n\nБарои ҷустуҷӯи дубора мамлакати худро дубора бугузорӣ кунед.',
         tr: '\n\nTekrar aramak için konumunuzu tekrar paylaşın.',
+    },
+    caption: {
+        distance: {
+            en: '<b>Distance:</b>',
+            ru: '<b>Расстояние:</b>',
+            uz: '<b>Masofa:</b>',
+            kk: '<b>Қашықтық:</b>',
+            ky: '<b>Аралык:</b>',
+            tg: '<b>Масофа:</b>',
+            tr: '<b>Mesafe:</b>',
+        },
+        address: {
+            en: '<b>Address:</b>',
+            ru: '<b>Адрес:</b>',
+            uz: '<b>Manzil:</b>',
+            kk: '<b>Мекенжай:</b>',
+            ky: '<b>Дарек:</b>',
+            tg: '<b>Суроға:</b>',
+            tr: '<b>Adres:</b>',
+        },
+        phone: {
+            en: '<b>Phone:</b>',
+            ru: '<b>Телефон:</b>',
+            uz: '<b>Telefon:</b>',
+            kk: '<b>Телефон:</b>',
+            ky: '<b>Телефон:</b>',
+            tg: '<b>Телефон:</b>',
+            tr: '<b>Telefon:</b>',
+        },
+        map: {
+            en: 'View on map',
+            ru: 'Открыть на карте',
+            uz: 'Xaritada ko\'rish',
+            kk: 'Картадан көру',
+            ky: 'Картадан көрүү',
+            tg: 'Дар харита дидан',
+            tr: 'Haritada görüntüle',
+        },
     },
 });
 
@@ -126,14 +164,16 @@ const buildPhotoInput = async (imageUrl: string, restaurantName: string) => {
     };
 };
 
-const buildRestaurantCaption = (restaurant: any, index: number) => {
-    const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🍽️';
-    const addressPart = restaurant.address ? `\n📍 <b>Manzil:</b> ${restaurant.address}` : '';
-    const phonePart = restaurant.phone ? `\n📞 <b>Telefon:</b> ${restaurant.phone}` : '';
-    const websitePart = restaurant.website ? `\n🌐 <a href="${restaurant.website}">Sayt</a>` : '';
+const buildRestaurantCaption = (restaurant: any, index: number, language: string, msgs: ReturnType<typeof getMessages>) => {
+    const distanceLabel = msgs.caption.distance[language as keyof typeof msgs.caption.distance] || msgs.caption.distance.en;
+    const addressLabel = msgs.caption.address[language as keyof typeof msgs.caption.address] || msgs.caption.address.en;
+    const phoneLabel = msgs.caption.phone[language as keyof typeof msgs.caption.phone] || msgs.caption.phone.en;
+    const mapLabel = msgs.caption.map[language as keyof typeof msgs.caption.map] || msgs.caption.map.en;
+    const addressPart = restaurant.address ? `\n${addressLabel} ${restaurant.address}` : '';
+    const phonePart = restaurant.phone ? `\n${phoneLabel} ${restaurant.phone}` : '';
     const mapsUrl = `https://maps.google.com/?q=${restaurant.location.latitude},${restaurant.location.longitude}`;
 
-    return `${rankEmoji} <b>${restaurant.name}</b>\n📏 <b>Masofa:</b> ${restaurant.distance.toFixed(1)} km${addressPart}${phonePart}${websitePart}\n🧭 <a href="${mapsUrl}">Xaritada ko'rish</a>`;
+    return `${index + 1}) <b>${restaurant.name}</b>\n${distanceLabel} ${restaurant.distance.toFixed(1)} km${addressPart}${phonePart}\n<a href="${mapsUrl}">${mapLabel}</a>`;
 };
 
 const normalizeFoodTypeText = (value: string) =>
@@ -209,7 +249,7 @@ export const locationHandler = async (ctx: SessionContext) => {
             (msgs.header[language as keyof typeof msgs.header] || msgs.header.en) +
             nearbyRestaurants
                 .map((restaurant: any, index) => {
-                    const addressPart = restaurant.address ? `\n   📍 ${restaurant.address}` : '';
+                    const addressPart = restaurant.address ? `\n   ${restaurant.address}` : '';
                     return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
                 })
                 .join('\n') +
@@ -221,10 +261,10 @@ export const locationHandler = async (ctx: SessionContext) => {
     for (let index = 0; index < Math.min(5, restaurantsWithImages.length); index += 1) {
         const restaurant = restaurantsWithImages[index];
         const replyOptions = {
-            caption: buildRestaurantCaption(restaurant, index),
+            caption: buildRestaurantCaption(restaurant, index, language, msgs),
             parse_mode: 'HTML' as const,
             ...((index === Math.min(5, restaurantsWithImages.length) - 1)
-                ? { reply_markup: mainKeyboard().reply_markup }
+                ? { reply_markup: mainKeyboard(language).reply_markup }
                 : {}),
         };
 
@@ -234,7 +274,7 @@ export const locationHandler = async (ctx: SessionContext) => {
         } catch (error) {
             console.error(`Failed to send photo for restaurant ${restaurant.name}:`, error);
             await ctx.replyWithHTML(replyOptions.caption, index === Math.min(5, restaurantsWithImages.length) - 1
-                ? { reply_markup: mainKeyboard().reply_markup, parse_mode: 'HTML' }
+                ? { reply_markup: mainKeyboard(language).reply_markup, parse_mode: 'HTML' }
                 : { parse_mode: 'HTML' });
         }
     }

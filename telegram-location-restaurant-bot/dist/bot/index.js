@@ -23,5 +23,17 @@ bot.action(/^lang_/, language_handler_1.handleLanguageSelection);
 // Food type selection
 bot.hears(main_keyboard_1.BUTTONS.SELECT_FOOD_TYPE, (ctx) => (0, language_handler_1.foodTypeHandler)(ctx));
 bot.action(/^food_/, language_handler_1.handleFoodTypeSelection);
-bot.on('text', (ctx) => ctx.reply('Iltimos, pastdagi tugmalardan foydalaning yoki /language buyrug\'ini ishlating.', (0, main_keyboard_1.mainKeyboard)()));
+bot.on('text', (ctx) => {
+    var _a, _b;
+    return ctx.reply({
+        en: 'Please use the buttons below or use /language command.',
+        ru: 'Пожалуйста, используйте кнопки ниже или команду /language.',
+        uz: 'Iltimos, pastdagi tugmalardan foydalaning yoki /language buyrug\'ini ishlating.',
+        kk: 'Төмендегі батырмаларды пайдаланыңыз немесе /language командасын қолданыңыз.',
+        ky: 'Төмөнкү баскычтарды колдонуңуз же /language буйругун жазыңыз.',
+        tg: 'Лутфан тугмаҳои поёнро истифода баред ё фармони /language-ро нависед.',
+        tr: 'Lütfen aşağıdaki butonları kullanın veya /language komutunu yazın.',
+    }[((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en'] ||
+        'Please use the buttons below or use /language command.', (0, main_keyboard_1.mainKeyboard)(((_b = ctx.session) === null || _b === void 0 ? void 0 : _b.language) || 'en'));
+});
 exports.default = bot;

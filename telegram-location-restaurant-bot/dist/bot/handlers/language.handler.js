@@ -16,6 +16,7 @@ exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLangua
 const telegraf_1 = require("telegraf");
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("../../config");
+const main_keyboard_1 = require("../keyboards/main.keyboard");
 const ensureSession = (ctx) => {
     var _a;
     (_a = ctx.session) !== null && _a !== void 0 ? _a : (ctx.session = {});
@@ -28,7 +29,7 @@ const languageHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
         const keyboard = telegraf_1.Markup.inlineKeyboard(languages.map((lang) => [
             telegraf_1.Markup.button.callback(`${lang.flag} ${lang.name}`, `lang_${lang.code}`),
         ]));
-        return ctx.reply('🌐 Tilni tanlang / Select Language:', keyboard);
+        return ctx.reply('Tilni tanlang / Select language:', keyboard);
     }
     catch (error) {
         console.error('Error fetching languages:', error);
@@ -47,15 +48,16 @@ const handleLanguageSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         // Store language in session
         ensureSession(ctx).language = languageCode;
         const messages = {
-            en: '✅ English selected',
-            ru: '✅ Русский выбран',
-            uz: '✅ O\'zbek tanlandi',
-            kk: '✅ Қазақша таңдалды',
-            ky: '✅ Кыргызча тандалды',
-            tg: '✅ Тоҷикӣ танбор шуд',
-            tr: '✅ Türkçe seçildi',
+            en: 'English selected',
+            ru: 'Русский выбран',
+            uz: 'O\'zbek tanlandi',
+            kk: 'Қазақша таңдалды',
+            ky: 'Кыргызча тандалды',
+            tg: 'Тоҷикӣ интихоб шуд',
+            tr: 'Türkçe seçildi',
         };
-        yield ctx.editMessageText(messages[languageCode] || '✅ Language selected');
+        yield ctx.editMessageText(messages[languageCode] || 'Language selected');
+        yield ctx.reply(messages[languageCode] || 'Language selected', (0, main_keyboard_1.mainKeyboard)(languageCode));
         // Show food type selection
         yield (0, exports.foodTypeHandler)(ctx, languageCode);
     }
@@ -75,19 +77,19 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
             telegraf_1.Markup.button.callback(food.name, `food_${food.slug}`),
         ]));
         const messages = {
-            en: '🍽️ Select food type:',
-            ru: '🍽️ Выберите тип кухни:',
-            uz: '🍽️ Ovqat turini tanlang:',
-            kk: '🍽️ Тағам түрін таңдаңыз:',
-            ky: '🍽️ Тамактын түрүн тандаңыз:',
-            tg: '🍽️ Навъи хӯрок интихоб кунед:',
-            tr: '🍽️ Yemek türünü seçin:',
+            en: 'Select food type:',
+            ru: 'Выберите тип кухни:',
+            uz: 'Ovqat turini tanlang:',
+            kk: 'Тағам түрін таңдаңыз:',
+            ky: 'Тамактын түрүн тандаңыз:',
+            tg: 'Навъи хӯрокро интихоб кунед:',
+            tr: 'Yemek türünü seçin:',
         };
         if (ctx.callbackQuery) {
-            yield ctx.editMessageText(messages[lang] || '🍽️ Select food type:', keyboard);
+            yield ctx.editMessageText(messages[lang] || 'Select food type:', keyboard);
         }
         else {
-            yield ctx.reply(messages[lang] || '🍽️ Select food type:', keyboard);
+            yield ctx.reply(messages[lang] || 'Select food type:', keyboard);
         }
     }
     catch (error) {
@@ -109,13 +111,13 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         ensureSession(ctx).foodType = foodType;
         const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
         const messages = {
-            en: '✅ Food type selected. Now share your location to find restaurants.',
-            ru: '✅ Тип кухни выбран. Теперь поделитесь своим местоположением.',
-            uz: '✅ Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
-            kk: '✅ Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
-            ky: '✅ Тамак түрү тандалды. Эми жайгашкан жерин багы.',
-            tg: '✅ Навъи хӯрок интихоб шуд. Ҳоло мамлакати худро ба куллам бугузорӣ кунед.',
-            tr: '✅ Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
+            en: 'Food type selected. Now share your location to find restaurants.',
+            ru: 'Тип кухни выбран. Теперь поделитесь своим местоположением.',
+            uz: 'Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
+            kk: 'Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
+            ky: 'Тамак түрү тандалды. Эми жайгашкан жериңизди бөлүшүңүз.',
+            tg: 'Навъи хӯрок интихоб шуд. Ҳоло ҷойгиршавии худро ирсол кунед.',
+            tr: 'Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
         };
         yield ctx.editMessageText(messages[lang] || 'Food type selected. Share your location.');
     }
