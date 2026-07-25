@@ -4,9 +4,12 @@
   "description": "A Telegram bot that finds nearby restaurants based on user location.",
   "main": "src/app.ts",
   "scripts": {
-    "start": "ts-node src/app.ts",
+    "start": "node dist/app.js",
     "build": "tsc",
     "dev": "ts-node-dev src/app.ts"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "axios": "^0.21.1",
