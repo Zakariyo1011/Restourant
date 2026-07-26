@@ -101,7 +101,7 @@ const CUISINE_PRESETS = [
     {
         key: 'italian',
         callback: 'foodpreset_italian',
-        filter: 'italian|pizza|pasta|lasagna|risotto',
+        filter: 'italian|pizza|pasta|lasagna|risotto|spaghetti|ravioli|tiramisu',
         labels: {
             en: 'Italian food',
             ru: 'Итальянская кухня',
@@ -115,7 +115,7 @@ const CUISINE_PRESETS = [
     {
         key: 'chinese',
         callback: 'foodpreset_chinese',
-        filter: 'chinese|wok|noodles|dumpling|peking|szechuan',
+        filter: 'chinese|wok|noodles|dumpling|peking|szechuan|fried rice|dim sum|mapo',
         labels: {
             en: 'Chinese food',
             ru: 'Китайская кухня',

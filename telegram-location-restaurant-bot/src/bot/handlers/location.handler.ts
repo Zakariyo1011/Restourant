@@ -192,41 +192,60 @@ const normalizeFoodTypeText = (value: string) =>
         .trim();
 
 const matchesFoodType = (restaurant: any, foodType: string) => {
+    if (!foodType || !String(foodType).trim()) {
+        return true; // No filter = show all
+    }
+
     const restaurantText = normalizeFoodTypeText([
-        restaurant.name,
-        restaurant.address,
-        restaurant.cuisine_type,
-        restaurant.website,
+        restaurant.name || '',
+        restaurant.address || '',
+        restaurant.cuisine_type || '',
+        restaurant.website || '',
     ]
         .filter(Boolean)
         .join(' '));
 
-    // Parse comma or pipe-separated filters (from presets)
-    const filterTerms = String(foodType || '')
-        .split(/[|,]/)
-        .map((t) => normalizeFoodTypeText(t.trim()))
-        .filter(Boolean);
-
-    if (filterTerms.length === 0 || !restaurantText) {
-        return true; // No filter = show all
+    if (!restaurantText) {
+        return true; // No restaurant text to match against
     }
 
-    // At least one filter term should match
+    // Split by pipe (|) for preset filters or by comma for multi-term filters
+    const filterTerms = String(foodType)
+        .toLowerCase()
+        .split(/[|,]/)
+        .map((t) => normalizeFoodTypeText(t.trim()))
+        .filter((t) => t && t.length >= 2);
+
+    if (filterTerms.length === 0) {
+        return true; // No valid filter terms
+    }
+
+    // Split restaurant text into words for word-by-word matching
+    const restaurantWords = restaurantText.split(/\s+/).filter(Boolean);
+
+    // At least ONE filter term should match
     return filterTerms.some((term) => {
         if (!term || term.length < 2) return false;
 
-        // Strategy: word-boundary match preferred
-        // Split restaurant text into words
-        const restaurantWords = restaurantText.split(/\s+/).filter(Boolean);
-
-        // Check for exact word match or strong substring match
+        // Try to match this term against restaurant words
         return restaurantWords.some((word) => {
-            // Exact match
-            if (word === term) return true;
-            // Word starts with term AND term is at least 3 chars (to avoid false positives like "ch" matching "chair")
-            if (term.length >= 3 && word.startsWith(term)) return true;
-            // Term is contained as full substring (e.g., "pizza" in "pizzeria")
-            if (term.length >= 4 && word.includes(term)) return true;
+            // Exact match (highest priority)
+            if (word === term) {
+                return true;
+            }
+
+            // Substring match for longer terms (4+ chars) to avoid false positives
+            // e.g., "pizza" matches "pizzeria" or "pizza-house"
+            if (term.length >= 4 && word.includes(term)) {
+                return true;
+            }
+
+            // Prefix match for medium terms (3+ chars)
+            // e.g., "chi" matches "chinese" only if term is "chi" and word is "chinese"
+            if (term.length >= 3 && word.startsWith(term)) {
+                return true;
+            }
+
             return false;
         });
     });
