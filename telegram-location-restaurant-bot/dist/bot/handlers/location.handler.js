@@ -191,14 +191,21 @@ const matchesFoodType = (restaurant, foodType) => {
         .split('|')
         .map((value) => normalizeFoodTypeText(value))
         .filter(Boolean);
+    if (presetsOrInput.length === 0 || !haystack) {
+        return true;
+    }
     const candidateTerms = presetsOrInput.flatMap((entry) => {
-        const words = entry.split(' ').filter((word) => word.length >= 3);
+        const words = entry.split(' ').filter((word) => word.length >= 2);
         return [entry, ...words];
     });
-    if (candidateTerms.length === 0 || !haystack) {
-        return false;
-    }
-    return candidateTerms.some((term) => haystack.includes(term));
+    return candidateTerms.some((term) => {
+        if (!term)
+            return false;
+        if (haystack.includes(term))
+            return true;
+        const haystackWords = haystack.split(' ');
+        return haystackWords.some((word) => word.startsWith(term) || term.startsWith(word));
+    });
 };
 const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;

@@ -299,16 +299,16 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
 
         if (foodMatch) {
             session.foodType = foodMatch[1];
+            session.awaitingCustomFoodType = false;
         }
 
         if (presetMatch) {
             const selectedPreset = CUISINE_PRESETS.find((preset) => preset.key === presetMatch[1]);
             if (selectedPreset) {
                 session.foodType = selectedPreset.filter;
+                session.awaitingCustomFoodType = false;
             }
         }
-
-        session.awaitingCustomFoodType = false;
 
         const lang = ctx.session?.language || 'en';
 

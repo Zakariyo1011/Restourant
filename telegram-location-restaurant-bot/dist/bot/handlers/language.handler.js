@@ -259,14 +259,15 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         const session = ensureSession(ctx);
         if (foodMatch) {
             session.foodType = foodMatch[1];
+            session.awaitingCustomFoodType = false;
         }
         if (presetMatch) {
             const selectedPreset = CUISINE_PRESETS.find((preset) => preset.key === presetMatch[1]);
             if (selectedPreset) {
                 session.foodType = selectedPreset.filter;
+                session.awaitingCustomFoodType = false;
             }
         }
-        session.awaitingCustomFoodType = false;
         const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
         const messages = {
             en: 'Food type selected. Now share your location to find restaurants.',
