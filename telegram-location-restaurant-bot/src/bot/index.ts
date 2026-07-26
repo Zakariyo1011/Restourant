@@ -35,15 +35,9 @@ bot.action(/^lang_/, handleLanguageSelection);
 bot.hears(BUTTONS.SELECT_FOOD_TYPE, (ctx) => foodTypeHandler(ctx));
 bot.action(/^food_/, handleFoodTypeSelection);
 bot.action(/^foodpreset_/, handleFoodTypeSelection);
-bot.action('food_custom_input', requestCustomFoodTypeInput);
 
-bot.on('text', async (ctx) => {
-	const handledCustomInput = await handleCustomFoodTypeInput(ctx as any);
-	if (handledCustomInput) {
-		return;
-	}
-
-	return ctx.reply(
+bot.on('text', (ctx) =>
+	ctx.reply(
 		({
 			en: 'Please use the buttons below or use /language command.',
 			ru: 'Пожалуйста, используйте кнопки ниже или команду /language.',
@@ -55,7 +49,7 @@ bot.on('text', async (ctx) => {
 		} as Record<string, string>)[(ctx as any).session?.language || 'en'] ||
 			'Please use the buttons below or use /language command.',
 		mainKeyboard((ctx as any).session?.language || 'en'),
-	);
-});
+	),
+);
 
 export default bot;

@@ -103,20 +103,6 @@ const CUISINE_PRESETS = [
         },
     },
     {
-        key: 'international',
-        callback: 'foodpreset_international',
-        filter: 'central asian|uzbek|kazakh|tajik|kyrgyz|turkmen',
-        labels: {
-            en: 'Central Asian food',
-            ru: 'Среднеазиатская кухня',
-            uz: 'Markaziy Osiyo taomlari',
-            kk: 'Орталық Азия тағамдары',
-            ky: 'Борбор Азия тамактары',
-            tg: 'Таомҳои Осиёи Марказӣ',
-            tr: 'Orta Asya mutfağı',
-        },
-    },
-    {
         key: 'italian',
         callback: 'foodpreset_italian',
         filter: 'italian|pizza|pasta|lasagna|risotto',
@@ -200,7 +186,7 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
     var _a;
     try {
         const lang = languageCode || ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
-        ensureSession(ctx).awaitingCustomFoodType = true;
+        ensureSession(ctx).awaitingCustomFoodType = false;
         const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/food-types/${lang}`);
         const foodTypes = response.data.food_types || [];
         const apiRows = foodTypes.map((food) => [
@@ -209,21 +195,9 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
         const presetRows = CUISINE_PRESETS.map((preset) => [
             telegraf_1.Markup.button.callback(preset.labels[lang] || preset.labels.en, preset.callback),
         ]);
-        const customInputLabels = {
-            en: 'Type your own option',
-            ru: 'Ввести свой вариант',
-            uz: 'O\'zingiz kiriting',
-            kk: 'Өзіңіз енгізіңіз',
-            ky: 'Өзүңүз жазыңыз',
-            tg: 'Худатон ворид кунед',
-            tr: 'Kendiniz yazın',
-        };
         const keyboard = telegraf_1.Markup.inlineKeyboard([
             ...apiRows,
             ...presetRows,
-            [
-                telegraf_1.Markup.button.callback(customInputLabels[lang] || customInputLabels.en, CUSTOM_INPUT_CALLBACK),
-            ],
         ]);
         const messages = {
             en: 'Select food type:',

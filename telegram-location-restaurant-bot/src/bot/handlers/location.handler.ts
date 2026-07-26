@@ -192,7 +192,7 @@ const normalizeFoodTypeText = (value: string) =>
         .trim();
 
 const matchesFoodType = (restaurant: any, foodType: string) => {
-    const haystack = normalizeFoodTypeText([
+    const restaurantText = normalizeFoodTypeText([
         restaurant.name,
         restaurant.address,
         restaurant.cuisine_type,
@@ -201,25 +201,34 @@ const matchesFoodType = (restaurant: any, foodType: string) => {
         .filter(Boolean)
         .join(' '));
 
-    const presetsOrInput = String(foodType || '')
-        .split('|')
-        .map((value) => normalizeFoodTypeText(value))
+    // Parse comma or pipe-separated filters (from presets)
+    const filterTerms = String(foodType || '')
+        .split(/[|,]/)
+        .map((t) => normalizeFoodTypeText(t.trim()))
         .filter(Boolean);
 
-    if (presetsOrInput.length === 0 || !haystack) {
-        return true;
+    if (filterTerms.length === 0 || !restaurantText) {
+        return true; // No filter = show all
     }
 
-    const candidateTerms = presetsOrInput.flatMap((entry) => {
-        const words = entry.split(' ').filter((word) => word.length >= 2);
-        return [entry, ...words];
-    });
+    // At least one filter term should match
+    return filterTerms.some((term) => {
+        if (!term || term.length < 2) return false;
 
-    return candidateTerms.some((term) => {
-        if (!term) return false;
-        if (haystack.includes(term)) return true;
-        const haystackWords = haystack.split(' ');
-        return haystackWords.some((word) => word.startsWith(term) || term.startsWith(word));
+        // Strategy: word-boundary match preferred
+        // Split restaurant text into words
+        const restaurantWords = restaurantText.split(/\s+/).filter(Boolean);
+
+        // Check for exact word match or strong substring match
+        return restaurantWords.some((word) => {
+            // Exact match
+            if (word === term) return true;
+            // Word starts with term AND term is at least 3 chars (to avoid false positives like "ch" matching "chair")
+            if (term.length >= 3 && word.startsWith(term)) return true;
+            // Term is contained as full substring (e.g., "pizza" in "pizzeria")
+            if (term.length >= 4 && word.includes(term)) return true;
+            return false;
+        });
     });
 };
 

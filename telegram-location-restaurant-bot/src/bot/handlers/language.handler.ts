@@ -99,20 +99,6 @@ const CUISINE_PRESETS = [
         },
     },
     {
-        key: 'international',
-        callback: 'foodpreset_international',
-        filter: 'central asian|uzbek|kazakh|tajik|kyrgyz|turkmen',
-        labels: {
-            en: 'Central Asian food',
-            ru: 'Среднеазиатская кухня',
-            uz: 'Markaziy Osiyo taomlari',
-            kk: 'Орталық Азия тағамдары',
-            ky: 'Борбор Азия тамактары',
-            tg: 'Таомҳои Осиёи Марказӣ',
-            tr: 'Orta Asya mutfağı',
-        },
-    },
-    {
         key: 'italian',
         callback: 'foodpreset_italian',
         filter: 'italian|pizza|pasta|lasagna|risotto',
@@ -218,7 +204,7 @@ export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string
     try {
         const lang = languageCode || ctx.session?.language || 'en';
 
-        ensureSession(ctx).awaitingCustomFoodType = true;
+        ensureSession(ctx).awaitingCustomFoodType = false;
 
         const response = await axios.get(
             `${config.API_BASE_URL}/food-types/${lang}`
@@ -237,25 +223,9 @@ export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string
             ),
         ]);
 
-        const customInputLabels: Record<string, string> = {
-            en: 'Type your own option',
-            ru: 'Ввести свой вариант',
-            uz: 'O\'zingiz kiriting',
-            kk: 'Өзіңіз енгізіңіз',
-            ky: 'Өзүңүз жазыңыз',
-            tg: 'Худатон ворид кунед',
-            tr: 'Kendiniz yazın',
-        };
-
         const keyboard = Markup.inlineKeyboard([
             ...apiRows,
             ...presetRows,
-            [
-                Markup.button.callback(
-                    customInputLabels[lang] || customInputLabels.en,
-                    CUSTOM_INPUT_CALLBACK,
-                ),
-            ],
         ]);
 
         const messages: Record<string, string> = {
