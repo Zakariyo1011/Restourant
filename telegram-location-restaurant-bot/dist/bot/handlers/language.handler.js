@@ -12,11 +12,98 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLanguageSelection = exports.languageHandler = void 0;
+exports.handleCustomFoodTypeInput = exports.requestCustomFoodTypeInput = exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLanguageSelection = exports.languageHandler = void 0;
 const telegraf_1 = require("telegraf");
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("../../config");
 const main_keyboard_1 = require("../keyboards/main.keyboard");
+const CUISINE_PRESETS = [
+    {
+        key: 'uzbek',
+        callback: 'foodpreset_uzbek',
+        filter: 'uzbek|o\'zbek|uzbek cuisine|osh|plov|palov',
+        labels: {
+            en: 'Uzbek food',
+            ru: 'Узбекская кухня',
+            uz: 'O\'zbek taomlari',
+            kk: 'Өзбек тағамдары',
+            ky: 'Өзбек тамактары',
+            tg: 'Таомҳои ӯзбекӣ',
+            tr: 'Özbek mutfağı',
+        },
+    },
+    {
+        key: 'kazakh',
+        callback: 'foodpreset_kazakh',
+        filter: 'kazakh|qazaq|қазақ|kazakh cuisine|beshbarmak',
+        labels: {
+            en: 'Kazakh food',
+            ru: 'Казахская кухня',
+            uz: 'Qozoq taomlari',
+            kk: 'Қазақ тағамдары',
+            ky: 'Казак тамактары',
+            tg: 'Таомҳои қазоқӣ',
+            tr: 'Kazak mutfağı',
+        },
+    },
+    {
+        key: 'tajik',
+        callback: 'foodpreset_tajik',
+        filter: 'tajik|tojik|таджик|tajik cuisine|qurutob',
+        labels: {
+            en: 'Tajik food',
+            ru: 'Таджикская кухня',
+            uz: 'Tojik taomlari',
+            kk: 'Тәжік тағамдары',
+            ky: 'Тажик тамактары',
+            tg: 'Таомҳои тоҷикӣ',
+            tr: 'Tacik mutfağı',
+        },
+    },
+    {
+        key: 'kyrgyz',
+        callback: 'foodpreset_kyrgyz',
+        filter: 'kyrgyz|кыргыз|qirg\'iz|kyrgyz cuisine',
+        labels: {
+            en: 'Kyrgyz food',
+            ru: 'Кыргызская кухня',
+            uz: 'Qirg\'iz taomlari',
+            kk: 'Қырғыз тағамдары',
+            ky: 'Кыргыз тамактары',
+            tg: 'Таомҳои қирғизӣ',
+            tr: 'Kırgız mutfağı',
+        },
+    },
+    {
+        key: 'turkish',
+        callback: 'foodpreset_turkish',
+        filter: 'turkish|türk|turk|turkish cuisine|kebab',
+        labels: {
+            en: 'Turkish food',
+            ru: 'Турецкая кухня',
+            uz: 'Turk taomlari',
+            kk: 'Түрік тағамдары',
+            ky: 'Түрк тамактары',
+            tg: 'Таомҳои туркӣ',
+            tr: 'Türk mutfağı',
+        },
+    },
+    {
+        key: 'international',
+        callback: 'foodpreset_international',
+        filter: 'international|european|asian|mixed cuisine',
+        labels: {
+            en: 'International food',
+            ru: 'Международная кухня',
+            uz: 'Xalqaro taomlar',
+            kk: 'Халықаралық тағамдар',
+            ky: 'Эл аралык тамактар',
+            tg: 'Таомҳои байналмилалӣ',
+            tr: 'Uluslararası mutfak',
+        },
+    },
+];
+const CUSTOM_INPUT_CALLBACK = 'food_custom_input';
 const ensureSession = (ctx) => {
     var _a;
     (_a = ctx.session) !== null && _a !== void 0 ? _a : (ctx.session = {});
@@ -71,11 +158,31 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
     var _a;
     try {
         const lang = languageCode || ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
+        ensureSession(ctx).awaitingCustomFoodType = false;
         const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/food-types/${lang}`);
         const foodTypes = response.data.food_types || [];
-        const keyboard = telegraf_1.Markup.inlineKeyboard(foodTypes.map((food) => [
+        const apiRows = foodTypes.map((food) => [
             telegraf_1.Markup.button.callback(food.name, `food_${food.slug}`),
-        ]));
+        ]);
+        const presetRows = CUISINE_PRESETS.map((preset) => [
+            telegraf_1.Markup.button.callback(preset.labels[lang] || preset.labels.en, preset.callback),
+        ]);
+        const customInputLabels = {
+            en: 'Type your own option',
+            ru: 'Ввести свой вариант',
+            uz: 'O\'zingiz kiriting',
+            kk: 'Өзіңіз енгізіңіз',
+            ky: 'Өзүңүз жазыңыз',
+            tg: 'Худатон ворид кунед',
+            tr: 'Kendiniz yazın',
+        };
+        const keyboard = telegraf_1.Markup.inlineKeyboard([
+            ...apiRows,
+            ...presetRows,
+            [
+                telegraf_1.Markup.button.callback(customInputLabels[lang] || customInputLabels.en, CUSTOM_INPUT_CALLBACK),
+            ],
+        ]);
         const messages = {
             en: 'Select food type:',
             ru: 'Выберите тип кухни:',
@@ -103,12 +210,21 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
     try {
         yield ctx.answerCbQuery().catch(() => undefined);
         const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
-        const match = typeof callbackData === 'string' ? callbackData.match(/^food_(.+)$/) : null;
-        if (!match)
+        const foodMatch = typeof callbackData === 'string' ? callbackData.match(/^food_(.+)$/) : null;
+        const presetMatch = typeof callbackData === 'string' ? callbackData.match(/^foodpreset_(.+)$/) : null;
+        if (!foodMatch && !presetMatch)
             return;
-        const foodType = match[1];
-        // Store food type in session
-        ensureSession(ctx).foodType = foodType;
+        const session = ensureSession(ctx);
+        if (foodMatch) {
+            session.foodType = foodMatch[1];
+        }
+        if (presetMatch) {
+            const selectedPreset = CUISINE_PRESETS.find((preset) => preset.key === presetMatch[1]);
+            if (selectedPreset) {
+                session.foodType = selectedPreset.filter;
+            }
+        }
+        session.awaitingCustomFoodType = false;
         const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
         const messages = {
             en: 'Food type selected. Now share your location to find restaurants.',
@@ -127,3 +243,51 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.handleFoodTypeSelection = handleFoodTypeSelection;
+const requestCustomFoodTypeInput = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        yield ctx.answerCbQuery().catch(() => undefined);
+        ensureSession(ctx).awaitingCustomFoodType = true;
+        const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
+        const messages = {
+            en: 'Type food/cuisine name (example: sushi, steak, uzbek food).',
+            ru: 'Введите название кухни/блюда (например: sushi, steak, узбекская кухня).',
+            uz: 'Ovqat yoki oshxona nomini yozing (masalan: sushi, steak, o\'zbek taomi).',
+            kk: 'Тағам немесе асхана атауын жазыңыз (мысалы: sushi, steak, өзбек тағамы).',
+            ky: 'Тамак же ашкана атын жазыңыз (мисалы: sushi, steak, өзбек тамагы).',
+            tg: 'Номи таом ё навъи ошхонаро нависед (масалан: sushi, steak, таоми ӯзбекӣ).',
+            tr: 'Yemek/mutfak adını yazın (örnek: sushi, steak, özbek mutfağı).',
+        };
+        yield ctx.reply(messages[lang] || messages.en);
+    }
+    catch (error) {
+        console.error('Error requesting custom food type input:', error);
+        yield ctx.reply('Error. Please try again.');
+    }
+});
+exports.requestCustomFoodTypeInput = requestCustomFoodTypeInput;
+const handleCustomFoodTypeInput = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    const text = (ctx.message && 'text' in ctx.message) ? String(ctx.message.text || '').trim() : '';
+    const session = ensureSession(ctx);
+    if (!session.awaitingCustomFoodType) {
+        return false;
+    }
+    if (!text) {
+        return true;
+    }
+    session.foodType = text;
+    session.awaitingCustomFoodType = false;
+    const lang = session.language || 'en';
+    const messages = {
+        en: `Saved: ${text}. Now share your location.`,
+        ru: `Сохранено: ${text}. Теперь отправьте локацию.`,
+        uz: `Saqlandi: ${text}. Endi joylashuvingizni yuboring.`,
+        kk: `Сақталды: ${text}. Енді орналасқан жеріңізді жіберіңіз.`,
+        ky: `Сакталды: ${text}. Эми жайгашкан жериңизди жөнөтүңүз.`,
+        tg: `Сабт шуд: ${text}. Акнун ҷойгиршавиро ирсол кунед.`,
+        tr: `Kaydedildi: ${text}. Şimdi konumunuzu gönderin.`,
+    };
+    yield ctx.reply(messages[lang] || messages.en, (0, main_keyboard_1.mainKeyboard)(lang));
+    return true;
+});
+exports.handleCustomFoodTypeInput = handleCustomFoodTypeInput;

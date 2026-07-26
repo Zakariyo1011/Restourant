@@ -1,7 +1,14 @@
 import { Telegraf, session } from 'telegraf';
 import { startHandler } from './handlers/start.handler';
 import { locationHandler } from './handlers/location.handler';
-import { languageHandler, handleLanguageSelection, foodTypeHandler, handleFoodTypeSelection } from './handlers/language.handler';
+import {
+	languageHandler,
+	handleLanguageSelection,
+	foodTypeHandler,
+	handleFoodTypeSelection,
+	requestCustomFoodTypeInput,
+	handleCustomFoodTypeInput,
+} from './handlers/language.handler';
 import { BUTTONS, mainKeyboard } from './keyboards/main.keyboard';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { config } from '../config';
@@ -27,9 +34,16 @@ bot.action(/^lang_/, handleLanguageSelection);
 // Food type selection
 bot.hears(BUTTONS.SELECT_FOOD_TYPE, (ctx) => foodTypeHandler(ctx));
 bot.action(/^food_/, handleFoodTypeSelection);
+bot.action(/^foodpreset_/, handleFoodTypeSelection);
+bot.action('food_custom_input', requestCustomFoodTypeInput);
 
-bot.on('text', (ctx) =>
-	ctx.reply(
+bot.on('text', async (ctx) => {
+	const handledCustomInput = await handleCustomFoodTypeInput(ctx as any);
+	if (handledCustomInput) {
+		return;
+	}
+
+	return ctx.reply(
 		({
 			en: 'Please use the buttons below or use /language command.',
 			ru: 'Пожалуйста, используйте кнопки ниже или команду /language.',
@@ -41,7 +55,7 @@ bot.on('text', (ctx) =>
 		} as Record<string, string>)[(ctx as any).session?.language || 'en'] ||
 			'Please use the buttons below or use /language command.',
 		mainKeyboard((ctx as any).session?.language || 'en'),
-	),
-);
+	);
+});
 
 export default bot;

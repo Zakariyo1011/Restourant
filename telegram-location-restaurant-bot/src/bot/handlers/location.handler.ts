@@ -9,6 +9,7 @@ interface SessionContext extends Context {
     session?: {
         language?: string;
         foodType?: string;
+        awaitingCustomFoodType?: boolean;
     };
 }
 
@@ -200,13 +201,21 @@ const matchesFoodType = (restaurant: any, foodType: string) => {
         .filter(Boolean)
         .join(' '));
 
-    const needle = normalizeFoodTypeText(foodType);
+    const presetsOrInput = String(foodType || '')
+        .split('|')
+        .map((value) => normalizeFoodTypeText(value))
+        .filter(Boolean);
 
-    if (!needle || !haystack) {
+    const candidateTerms = presetsOrInput.flatMap((entry) => {
+        const words = entry.split(' ').filter((word) => word.length >= 3);
+        return [entry, ...words];
+    });
+
+    if (candidateTerms.length === 0 || !haystack) {
         return false;
     }
 
-    return haystack.includes(needle);
+    return candidateTerms.some((term) => haystack.includes(term));
 };
 
 export const locationHandler = async (ctx: SessionContext) => {

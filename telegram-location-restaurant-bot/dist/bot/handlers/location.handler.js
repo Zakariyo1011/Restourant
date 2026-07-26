@@ -187,11 +187,18 @@ const matchesFoodType = (restaurant, foodType) => {
     ]
         .filter(Boolean)
         .join(' '));
-    const needle = normalizeFoodTypeText(foodType);
-    if (!needle || !haystack) {
+    const presetsOrInput = String(foodType || '')
+        .split('|')
+        .map((value) => normalizeFoodTypeText(value))
+        .filter(Boolean);
+    const candidateTerms = presetsOrInput.flatMap((entry) => {
+        const words = entry.split(' ').filter((word) => word.length >= 3);
+        return [entry, ...words];
+    });
+    if (candidateTerms.length === 0 || !haystack) {
         return false;
     }
-    return haystack.includes(needle);
+    return candidateTerms.some((term) => haystack.includes(term));
 };
 const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
