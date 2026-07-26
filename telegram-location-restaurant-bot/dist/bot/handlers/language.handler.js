@@ -89,17 +89,59 @@ const CUISINE_PRESETS = [
         },
     },
     {
+        key: 'turkmen',
+        callback: 'foodpreset_turkmen',
+        filter: 'turkmen|türkmen|turkman|turkmen cuisine|dograma',
+        labels: {
+            en: 'Turkmen food',
+            ru: 'Туркменская кухня',
+            uz: 'Turkman taomlari',
+            kk: 'Түрікмен тағамдары',
+            ky: 'Түркмөн тамактары',
+            tg: 'Таомҳои туркманӣ',
+            tr: 'Türkmen mutfağı',
+        },
+    },
+    {
         key: 'international',
         callback: 'foodpreset_international',
-        filter: 'international|european|asian|mixed cuisine',
+        filter: 'central asian|uzbek|kazakh|tajik|kyrgyz|turkmen',
         labels: {
-            en: 'International food',
-            ru: 'Международная кухня',
-            uz: 'Xalqaro taomlar',
-            kk: 'Халықаралық тағамдар',
-            ky: 'Эл аралык тамактар',
-            tg: 'Таомҳои байналмилалӣ',
-            tr: 'Uluslararası mutfak',
+            en: 'Central Asian food',
+            ru: 'Среднеазиатская кухня',
+            uz: 'Markaziy Osiyo taomlari',
+            kk: 'Орталық Азия тағамдары',
+            ky: 'Борбор Азия тамактары',
+            tg: 'Таомҳои Осиёи Марказӣ',
+            tr: 'Orta Asya mutfağı',
+        },
+    },
+    {
+        key: 'italian',
+        callback: 'foodpreset_italian',
+        filter: 'italian|pizza|pasta|lasagna|risotto',
+        labels: {
+            en: 'Italian food',
+            ru: 'Итальянская кухня',
+            uz: 'Italiya taomlari',
+            kk: 'Итальян тағамдары',
+            ky: 'Италия тамактары',
+            tg: 'Таомҳои итолиёвӣ',
+            tr: 'İtalyan mutfağı',
+        },
+    },
+    {
+        key: 'chinese',
+        callback: 'foodpreset_chinese',
+        filter: 'chinese|wok|noodles|dumpling|peking|szechuan',
+        labels: {
+            en: 'Chinese food',
+            ru: 'Китайская кухня',
+            uz: 'Xitoy taomlari',
+            kk: 'Қытай тағамдары',
+            ky: 'Кытай тамактары',
+            tg: 'Таомҳои чинӣ',
+            tr: 'Çin mutfağı',
         },
     },
 ];
@@ -158,7 +200,7 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
     var _a;
     try {
         const lang = languageCode || ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
-        ensureSession(ctx).awaitingCustomFoodType = false;
+        ensureSession(ctx).awaitingCustomFoodType = true;
         const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/food-types/${lang}`);
         const foodTypes = response.data.food_types || [];
         const apiRows = foodTypes.map((food) => [
