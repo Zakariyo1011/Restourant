@@ -6,8 +6,6 @@ import {
 	handleLanguageSelection,
 	foodTypeHandler,
 	handleFoodTypeSelection,
-	requestCustomFoodTypeInput,
-	handleCustomFoodTypeInput,
 } from './handlers/language.handler';
 import { BUTTONS, mainKeyboard } from './keyboards/main.keyboard';
 import { errorMiddleware } from './middlewares/error.middleware';

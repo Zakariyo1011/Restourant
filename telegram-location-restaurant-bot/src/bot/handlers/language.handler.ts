@@ -98,37 +98,14 @@ const CUISINE_PRESETS = [
             tr: 'Türkmen mutfağı',
         },
     },
-    {
-        key: 'italian',
-        callback: 'foodpreset_italian',
-        filter: 'italian|pizza|pasta|lasagna|risotto|spaghetti|ravioli|tiramisu',
-        labels: {
-            en: 'Italian food',
-            ru: 'Итальянская кухня',
-            uz: 'Italiya taomlari',
-            kk: 'Итальян тағамдары',
-            ky: 'Италия тамактары',
-            tg: 'Таомҳои итолиёвӣ',
-            tr: 'İtalyan mutfağı',
-        },
-    },
-    {
-        key: 'chinese',
-        callback: 'foodpreset_chinese',
-        filter: 'chinese|wok|noodles|dumpling|peking|szechuan|fried rice|dim sum|mapo',
-        labels: {
-            en: 'Chinese food',
-            ru: 'Китайская кухня',
-            uz: 'Xitoy taomlari',
-            kk: 'Қытай тағамдары',
-            ky: 'Кытай тамактары',
-            tg: 'Таомҳои чинӣ',
-            tr: 'Çin mutfağı',
-        },
-    },
 ] as const;
 
-const CUSTOM_INPUT_CALLBACK = 'food_custom_input';
+// Dish-based food types to exclude from API results (these are specific dishes, not cuisines)
+const EXCLUDED_DISH_SLUGS = [
+    'pizza', 'burger', 'sushi', 'shawarma', 'shaurma', 'plov', 'kebab',
+    'noodles', 'bakery', 'laghman', 'manti', 'hotdog', 'hot-dog',
+    'sandwich', 'doner', 'fries', 'wok', 'pasta',
+];
 
 const ensureSession = (ctx: SessionContext) => {
     ctx.session ??= {};
@@ -169,28 +146,24 @@ export const handleLanguageSelection = async (ctx: SessionContext) => {
         if (!match) return;
 
         const languageCode = match[1];
-
-        // Store language in session
         ensureSession(ctx).language = languageCode;
 
-        const messages: Record<string, string> = {
-            en: 'English selected',
-            ru: 'Русский выбран',
-            uz: 'O\'zbek tanlandi',
-            kk: 'Қазақша таңдалды',
-            ky: 'Кыргызча тандалды',
-            tg: 'Тоҷикӣ интихоб шуд',
-            tr: 'Türkçe seçildi',
+        const flagMap: Record<string, string> = {
+            en: '🇬🇧', ru: '🇷🇺', uz: '🇺🇿', kk: '🇰🇿',
+            ky: '🇰🇬', tg: '🇹🇯', tr: '🇹🇷',
         };
+        const nameMap: Record<string, string> = {
+            en: 'English', ru: 'Русский', uz: "O'zbek",
+            kk: 'Қазақ', ky: 'Кыргыз', tg: 'Тоҷикӣ', tr: 'Türkçe',
+        };
+        const flag = flagMap[languageCode] || '';
+        const name = nameMap[languageCode] || languageCode;
 
-        await ctx.editMessageText(
-            messages[languageCode] || 'Language selected'
-        );
+        // Update inline message to show selected language
+        await ctx.editMessageText(`${flag} ${name}`);
 
-        await ctx.reply(
-            messages[languageCode] || 'Language selected',
-            mainKeyboard(languageCode),
-        );
+        // Send new keyboard
+        await ctx.reply(`${flag} ${name}`, mainKeyboard(languageCode));
 
         // Show food type selection
         await foodTypeHandler(ctx, languageCode);
@@ -212,7 +185,16 @@ export const foodTypeHandler = async (ctx: SessionContext, languageCode?: string
 
         const foodTypes = response.data.food_types || [];
 
-        const apiRows = foodTypes.map((food: any) => [
+        // Filter out specific dish types, keep only cuisine categories
+        const filteredFoodTypes = foodTypes.filter((food: any) => {
+            const slug = (food.slug || '').toLowerCase().trim();
+            const name = (food.name || '').toLowerCase().trim();
+            return !EXCLUDED_DISH_SLUGS.some(
+                (excluded) => slug === excluded || slug.includes(excluded) || name === excluded
+            );
+        });
+
+        const apiRows = filteredFoodTypes.map((food: any) => [
             Markup.button.callback(food.name, `food_${food.slug}`),
         ]);
 
@@ -266,10 +248,14 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
         if (!foodMatch && !presetMatch) return;
 
         const session = ensureSession(ctx);
+        const lang = ctx.session?.language || 'en';
+
+        let selectedLabel = '';
 
         if (foodMatch) {
             session.foodType = foodMatch[1];
             session.awaitingCustomFoodType = false;
+            selectedLabel = foodMatch[1];
         }
 
         if (presetMatch) {
@@ -277,23 +263,35 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
             if (selectedPreset) {
                 session.foodType = selectedPreset.filter;
                 session.awaitingCustomFoodType = false;
+                selectedLabel = selectedPreset.labels[lang as keyof typeof selectedPreset.labels] || selectedPreset.labels.en;
             }
         }
 
-        const lang = ctx.session?.language || 'en';
+        // Edit inline message to show what was selected
+        await ctx.editMessageText(selectedLabel || 'Selected').catch(() => undefined);
 
-        const messages: Record<string, string> = {
-            en: 'Food type selected. Now share your location to find restaurants.',
-            ru: 'Тип кухни выбран. Теперь поделитесь своим местоположением.',
-            uz: 'Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
-            kk: 'Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
-            ky: 'Тамак түрү тандалды. Эми жайгашкан жериңизди бөлүшүңүз.',
-            tg: 'Навъи хӯрок интихоб шуд. Ҳоло ҷойгиршавии худро ирсол кунед.',
-            tr: 'Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
+        // Send confirmation with location request button
+        const locationLabels: Record<string, string> = {
+            en: 'Share location', ru: 'Отправить локацию',
+            uz: 'Joylashuv yuborish', kk: 'Орналасқан жерді жіберу',
+            ky: 'Жайгашкан жерди жөнөтүү', tg: 'Ирсоли ҷойгиршавӣ',
+            tr: 'Konum gönder',
+        };
+        const confirmLabels: Record<string, string> = {
+            en: `${selectedLabel} selected. Share your location:`,
+            ru: `${selectedLabel} выбрано. Поделитесь локацией:`,
+            uz: `${selectedLabel} tanlandi. Joylashuvingizni yuboring:`,
+            kk: `${selectedLabel} таңдалды. Орналасқан жерді жіберіңіз:`,
+            ky: `${selectedLabel} тандалды. Жайгашкан жерди жөнөтүңүз:`,
+            tg: `${selectedLabel} интихоб шуд. Ҷойгиршавиро ирсол кунед:`,
+            tr: `${selectedLabel} seçildi. Konumunuzu gönderin:`,
         };
 
-        await ctx.editMessageText(
-            messages[lang] || 'Food type selected. Share your location.'
+        await ctx.reply(
+            confirmLabels[lang] || `${selectedLabel} selected. Share your location:`,
+            Markup.keyboard([
+                [Markup.button.locationRequest(locationLabels[lang] || 'Share location')],
+            ]).resize().oneTime(),
         );
     } catch (error) {
         console.error('Error in food type selection:', error);
@@ -301,56 +299,4 @@ export const handleFoodTypeSelection = async (ctx: SessionContext) => {
     }
 };
 
-export const requestCustomFoodTypeInput = async (ctx: SessionContext) => {
-    try {
-        await ctx.answerCbQuery().catch(() => undefined);
 
-        ensureSession(ctx).awaitingCustomFoodType = true;
-
-        const lang = ctx.session?.language || 'en';
-        const messages: Record<string, string> = {
-            en: 'Type food/cuisine name (example: sushi, steak, uzbek food).',
-            ru: 'Введите название кухни/блюда (например: sushi, steak, узбекская кухня).',
-            uz: 'Ovqat yoki oshxona nomini yozing (masalan: sushi, steak, o\'zbek taomi).',
-            kk: 'Тағам немесе асхана атауын жазыңыз (мысалы: sushi, steak, өзбек тағамы).',
-            ky: 'Тамак же ашкана атын жазыңыз (мисалы: sushi, steak, өзбек тамагы).',
-            tg: 'Номи таом ё навъи ошхонаро нависед (масалан: sushi, steak, таоми ӯзбекӣ).',
-            tr: 'Yemek/mutfak adını yazın (örnek: sushi, steak, özbek mutfağı).',
-        };
-
-        await ctx.reply(messages[lang] || messages.en);
-    } catch (error) {
-        console.error('Error requesting custom food type input:', error);
-        await ctx.reply('Error. Please try again.');
-    }
-};
-
-export const handleCustomFoodTypeInput = async (ctx: SessionContext) => {
-    const text = (ctx.message && 'text' in ctx.message) ? String(ctx.message.text || '').trim() : '';
-    const session = ensureSession(ctx);
-
-    if (!session.awaitingCustomFoodType) {
-        return false;
-    }
-
-    if (!text) {
-        return true;
-    }
-
-    session.foodType = text;
-    session.awaitingCustomFoodType = false;
-
-    const lang = session.language || 'en';
-    const messages: Record<string, string> = {
-        en: `Saved: ${text}. Now share your location.`,
-        ru: `Сохранено: ${text}. Теперь отправьте локацию.`,
-        uz: `Saqlandi: ${text}. Endi joylashuvingizni yuboring.`,
-        kk: `Сақталды: ${text}. Енді орналасқан жеріңізді жіберіңіз.`,
-        ky: `Сакталды: ${text}. Эми жайгашкан жериңизди жөнөтүңүз.`,
-        tg: `Сабт шуд: ${text}. Акнун ҷойгиршавиро ирсол кунед.`,
-        tr: `Kaydedildi: ${text}. Şimdi konumunuzu gönderin.`,
-    };
-
-    await ctx.reply(messages[lang] || messages.en, mainKeyboard(lang));
-    return true;
-};

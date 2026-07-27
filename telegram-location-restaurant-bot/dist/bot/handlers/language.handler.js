@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleCustomFoodTypeInput = exports.requestCustomFoodTypeInput = exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLanguageSelection = exports.languageHandler = void 0;
+exports.handleFoodTypeSelection = exports.foodTypeHandler = exports.handleLanguageSelection = exports.languageHandler = void 0;
 const telegraf_1 = require("telegraf");
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("../../config");
@@ -102,36 +102,13 @@ const CUISINE_PRESETS = [
             tr: 'Türkmen mutfağı',
         },
     },
-    {
-        key: 'italian',
-        callback: 'foodpreset_italian',
-        filter: 'italian|pizza|pasta|lasagna|risotto|spaghetti|ravioli|tiramisu',
-        labels: {
-            en: 'Italian food',
-            ru: 'Итальянская кухня',
-            uz: 'Italiya taomlari',
-            kk: 'Итальян тағамдары',
-            ky: 'Италия тамактары',
-            tg: 'Таомҳои итолиёвӣ',
-            tr: 'İtalyan mutfağı',
-        },
-    },
-    {
-        key: 'chinese',
-        callback: 'foodpreset_chinese',
-        filter: 'chinese|wok|noodles|dumpling|peking|szechuan|fried rice|dim sum|mapo',
-        labels: {
-            en: 'Chinese food',
-            ru: 'Китайская кухня',
-            uz: 'Xitoy taomlari',
-            kk: 'Қытай тағамдары',
-            ky: 'Кытай тамактары',
-            tg: 'Таомҳои чинӣ',
-            tr: 'Çin mutfağı',
-        },
-    },
 ];
-const CUSTOM_INPUT_CALLBACK = 'food_custom_input';
+// Dish-based food types to exclude from API results (these are specific dishes, not cuisines)
+const EXCLUDED_DISH_SLUGS = [
+    'pizza', 'burger', 'sushi', 'shawarma', 'shaurma', 'plov', 'kebab',
+    'noodles', 'bakery', 'laghman', 'manti', 'hotdog', 'hot-dog',
+    'sandwich', 'doner', 'fries', 'wok', 'pasta',
+];
 const ensureSession = (ctx) => {
     var _a;
     (_a = ctx.session) !== null && _a !== void 0 ? _a : (ctx.session = {});
@@ -160,19 +137,21 @@ const handleLanguageSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         if (!match)
             return;
         const languageCode = match[1];
-        // Store language in session
         ensureSession(ctx).language = languageCode;
-        const messages = {
-            en: 'English selected',
-            ru: 'Русский выбран',
-            uz: 'O\'zbek tanlandi',
-            kk: 'Қазақша таңдалды',
-            ky: 'Кыргызча тандалды',
-            tg: 'Тоҷикӣ интихоб шуд',
-            tr: 'Türkçe seçildi',
+        const flagMap = {
+            en: '🇬🇧', ru: '🇷🇺', uz: '🇺🇿', kk: '🇰🇿',
+            ky: '🇰🇬', tg: '🇹🇯', tr: '🇹🇷',
         };
-        yield ctx.editMessageText(messages[languageCode] || 'Language selected');
-        yield ctx.reply(messages[languageCode] || 'Language selected', (0, main_keyboard_1.mainKeyboard)(languageCode));
+        const nameMap = {
+            en: 'English', ru: 'Русский', uz: "O'zbek",
+            kk: 'Қазақ', ky: 'Кыргыз', tg: 'Тоҷикӣ', tr: 'Türkçe',
+        };
+        const flag = flagMap[languageCode] || '';
+        const name = nameMap[languageCode] || languageCode;
+        // Update inline message to show selected language
+        yield ctx.editMessageText(`${flag} ${name}`);
+        // Send new keyboard
+        yield ctx.reply(`${flag} ${name}`, (0, main_keyboard_1.mainKeyboard)(languageCode));
         // Show food type selection
         yield (0, exports.foodTypeHandler)(ctx, languageCode);
     }
@@ -189,7 +168,13 @@ const foodTypeHandler = (ctx, languageCode) => __awaiter(void 0, void 0, void 0,
         ensureSession(ctx).awaitingCustomFoodType = false;
         const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/food-types/${lang}`);
         const foodTypes = response.data.food_types || [];
-        const apiRows = foodTypes.map((food) => [
+        // Filter out specific dish types, keep only cuisine categories
+        const filteredFoodTypes = foodTypes.filter((food) => {
+            const slug = (food.slug || '').toLowerCase().trim();
+            const name = (food.name || '').toLowerCase().trim();
+            return !EXCLUDED_DISH_SLUGS.some((excluded) => slug === excluded || slug.includes(excluded) || name === excluded);
+        });
+        const apiRows = filteredFoodTypes.map((food) => [
             telegraf_1.Markup.button.callback(food.name, `food_${food.slug}`),
         ]);
         const presetRows = CUISINE_PRESETS.map((preset) => [
@@ -231,28 +216,42 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         if (!foodMatch && !presetMatch)
             return;
         const session = ensureSession(ctx);
+        const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
+        let selectedLabel = '';
         if (foodMatch) {
             session.foodType = foodMatch[1];
             session.awaitingCustomFoodType = false;
+            selectedLabel = foodMatch[1];
         }
         if (presetMatch) {
             const selectedPreset = CUISINE_PRESETS.find((preset) => preset.key === presetMatch[1]);
             if (selectedPreset) {
                 session.foodType = selectedPreset.filter;
                 session.awaitingCustomFoodType = false;
+                selectedLabel = selectedPreset.labels[lang] || selectedPreset.labels.en;
             }
         }
-        const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
-        const messages = {
-            en: 'Food type selected. Now share your location to find restaurants.',
-            ru: 'Тип кухни выбран. Теперь поделитесь своим местоположением.',
-            uz: 'Ovqat turi tanlandi. Endi joylashuvingizni ulashing.',
-            kk: 'Тағам түрі таңдалды. Енді орналасқан жерін бөлісіңіз.',
-            ky: 'Тамак түрү тандалды. Эми жайгашкан жериңизди бөлүшүңүз.',
-            tg: 'Навъи хӯрок интихоб шуд. Ҳоло ҷойгиршавии худро ирсол кунед.',
-            tr: 'Yemek türü seçildi. Şimdi konumunuzu paylaşın.',
+        // Edit inline message to show what was selected
+        yield ctx.editMessageText(selectedLabel || 'Selected').catch(() => undefined);
+        // Send confirmation with location request button
+        const locationLabels = {
+            en: 'Share location', ru: 'Отправить локацию',
+            uz: 'Joylashuv yuborish', kk: 'Орналасқан жерді жіберу',
+            ky: 'Жайгашкан жерди жөнөтүү', tg: 'Ирсоли ҷойгиршавӣ',
+            tr: 'Konum gönder',
         };
-        yield ctx.editMessageText(messages[lang] || 'Food type selected. Share your location.');
+        const confirmLabels = {
+            en: `${selectedLabel} selected. Share your location:`,
+            ru: `${selectedLabel} выбрано. Поделитесь локацией:`,
+            uz: `${selectedLabel} tanlandi. Joylashuvingizni yuboring:`,
+            kk: `${selectedLabel} таңдалды. Орналасқан жерді жіберіңіз:`,
+            ky: `${selectedLabel} тандалды. Жайгашкан жерди жөнөтүңүз:`,
+            tg: `${selectedLabel} интихоб шуд. Ҷойгиршавиро ирсол кунед:`,
+            tr: `${selectedLabel} seçildi. Konumunuzu gönderin:`,
+        };
+        yield ctx.reply(confirmLabels[lang] || `${selectedLabel} selected. Share your location:`, telegraf_1.Markup.keyboard([
+            [telegraf_1.Markup.button.locationRequest(locationLabels[lang] || 'Share location')],
+        ]).resize().oneTime());
     }
     catch (error) {
         console.error('Error in food type selection:', error);
@@ -260,51 +259,3 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.handleFoodTypeSelection = handleFoodTypeSelection;
-const requestCustomFoodTypeInput = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    try {
-        yield ctx.answerCbQuery().catch(() => undefined);
-        ensureSession(ctx).awaitingCustomFoodType = true;
-        const lang = ((_a = ctx.session) === null || _a === void 0 ? void 0 : _a.language) || 'en';
-        const messages = {
-            en: 'Type food/cuisine name (example: sushi, steak, uzbek food).',
-            ru: 'Введите название кухни/блюда (например: sushi, steak, узбекская кухня).',
-            uz: 'Ovqat yoki oshxona nomini yozing (masalan: sushi, steak, o\'zbek taomi).',
-            kk: 'Тағам немесе асхана атауын жазыңыз (мысалы: sushi, steak, өзбек тағамы).',
-            ky: 'Тамак же ашкана атын жазыңыз (мисалы: sushi, steak, өзбек тамагы).',
-            tg: 'Номи таом ё навъи ошхонаро нависед (масалан: sushi, steak, таоми ӯзбекӣ).',
-            tr: 'Yemek/mutfak adını yazın (örnek: sushi, steak, özbek mutfağı).',
-        };
-        yield ctx.reply(messages[lang] || messages.en);
-    }
-    catch (error) {
-        console.error('Error requesting custom food type input:', error);
-        yield ctx.reply('Error. Please try again.');
-    }
-});
-exports.requestCustomFoodTypeInput = requestCustomFoodTypeInput;
-const handleCustomFoodTypeInput = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
-    const text = (ctx.message && 'text' in ctx.message) ? String(ctx.message.text || '').trim() : '';
-    const session = ensureSession(ctx);
-    if (!session.awaitingCustomFoodType) {
-        return false;
-    }
-    if (!text) {
-        return true;
-    }
-    session.foodType = text;
-    session.awaitingCustomFoodType = false;
-    const lang = session.language || 'en';
-    const messages = {
-        en: `Saved: ${text}. Now share your location.`,
-        ru: `Сохранено: ${text}. Теперь отправьте локацию.`,
-        uz: `Saqlandi: ${text}. Endi joylashuvingizni yuboring.`,
-        kk: `Сақталды: ${text}. Енді орналасқан жеріңізді жіберіңіз.`,
-        ky: `Сакталды: ${text}. Эми жайгашкан жериңизди жөнөтүңүз.`,
-        tg: `Сабт шуд: ${text}. Акнун ҷойгиршавиро ирсол кунед.`,
-        tr: `Kaydedildi: ${text}. Şimdi konumunuzu gönderin.`,
-    };
-    yield ctx.reply(messages[lang] || messages.en, (0, main_keyboard_1.mainKeyboard)(lang));
-    return true;
-});
-exports.handleCustomFoodTypeInput = handleCustomFoodTypeInput;
