@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Restaurant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AdminController extends Controller
 {
@@ -111,9 +112,13 @@ class AdminController extends Controller
             'cuisine'      => 'nullable|string',
             'max'          => 'nullable|integer|min:1|max:2000',
             'max_per_country' => 'nullable|integer|min:1|max:500',
+            'max_runtime_seconds' => 'nullable|integer|min:10|max:240',
             'auto_cities'  => 'nullable|boolean',
             'user_id'      => 'nullable|integer',
         ]);
+
+        @set_time_limit(0);
+        @ini_set('max_execution_time', '0');
 
         $apiKey = config('services.google.places_api_key') ?? env('GOOGLE_PLACES_API_KEY');
         if (! $apiKey) {
@@ -126,8 +131,10 @@ class AdminController extends Controller
         $cuisine   = $request->input('cuisine', '');
         $maxTotal  = (int) $request->input('max', 60);
         $maxPerCountry = (int) $request->input('max_per_country', 0);
+        $maxRuntimeSeconds = (int) $request->input('max_runtime_seconds', 45);
         $autoCities = (bool) $request->boolean('auto_cities', true);
         $userId    = (int) $request->input('user_id', 1);
+        $startedAt = microtime(true);
 
         $created = 0;
         $updated = 0;
@@ -146,17 +153,27 @@ class AdminController extends Controller
         $perCountryLimit = $maxPerCountry > 0
             ? $maxPerCountry
             : max(1, (int) ceil($maxTotal / count($targets)));
+        try {
+            foreach ($targets as $targetCountry => $targetCities) {
+                $perCity = max(1, (int) ceil($perCountryLimit / max(count($targetCities), 1)));
 
-        foreach ($targets as $targetCountry => $targetCities) {
-            $perCity = max(1, (int) ceil($perCountryLimit / max(count($targetCities), 1)));
+                foreach ($targetCities as $city) {
+                    if ((microtime(true) - $startedAt) >= $maxRuntimeSeconds) {
+                        $errors[] = "Import time budget reached ({$maxRuntimeSeconds}s). Qayta ishga tushiring.";
+                        break 2;
+                    }
 
-            foreach ($targetCities as $city) {
-                $placeIds = $this->collectPlaceIds($apiKey, $targetCountry, $city, $cuisine, $perCity, $errors);
+                    $placeIds = $this->collectPlaceIds($apiKey, $targetCountry, $city, $cuisine, $perCity, $errors);
 
-                $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
+                    $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
 
-                foreach ($placeIds as $placeId) {
-                    usleep(250000);
+                    foreach ($placeIds as $placeId) {
+                        if ((microtime(true) - $startedAt) >= $maxRuntimeSeconds) {
+                            $errors[] = "Import time budget reached ({$maxRuntimeSeconds}s). Qayta ishga tushiring.";
+                            break 3;
+                        }
+
+                        usleep(250000);
 
                     try {
                         $detailRes = Http::timeout(15)->get('https://maps.googleapis.com/maps/api/place/details/json', [
@@ -219,32 +236,49 @@ class AdminController extends Controller
                             ->first();
                     }
 
-                    if ($existing) {
-                        $existing->update($attrs);
-                        $restaurant = $existing;
-                        $updated++;
-                    } else {
-                        $restaurant = Restaurant::create($attrs);
-                        $created++;
-                    }
-
-                    if ($latP && $lngP) {
-                        $restaurant->location()->updateOrCreate(
-                            ['restaurant_id' => $restaurant->id],
-                            ['latitude' => $latP, 'longitude' => $lngP, 'address' => $address]
-                        );
-                    }
-
-                    foreach (array_slice($place['photos'] ?? [], 0, 3) as $photo) {
-                        $ref = $photo['photo_reference'] ?? null;
-                        if (! $ref) continue;
-                        $photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={$ref}&key={$apiKey}";
-                        if (! $restaurant->images()->where('url', $photoUrl)->exists()) {
-                            $restaurant->images()->create(['url' => $photoUrl]);
+                    try {
+                        if ($existing) {
+                            $existing->update($attrs);
+                            $restaurant = $existing;
+                            $updated++;
+                        } else {
+                            $restaurant = Restaurant::create($attrs);
+                            $created++;
                         }
+
+                        if ($latP && $lngP) {
+                            $restaurant->location()->updateOrCreate(
+                                ['restaurant_id' => $restaurant->id],
+                                ['latitude' => $latP, 'longitude' => $lngP, 'address' => $address]
+                            );
+                        }
+
+                        foreach (array_slice($place['photos'] ?? [], 0, 3) as $photo) {
+                            $ref = $photo['photo_reference'] ?? null;
+                            if (! $ref) continue;
+                            $photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={$ref}&key={$apiKey}";
+                            if (! $restaurant->images()->where('url', $photoUrl)->exists()) {
+                                $restaurant->images()->create(['url' => $photoUrl]);
+                            }
+                        }
+                    } catch (\Throwable $exception) {
+                        Log::warning('Import place save failed', [
+                            'place_id' => $placeId,
+                            'country' => $targetCountry,
+                            'city' => $city,
+                            'error' => $exception->getMessage(),
+                        ]);
+                        $errors[] = "Save failed for {$placeId}: " . $exception->getMessage();
+                        continue;
+                    }
                     }
                 }
             }
+        } catch (\Throwable $exception) {
+            Log::error('Import failed unexpectedly', [
+                'error' => $exception->getMessage(),
+            ]);
+            $errors[] = 'Import to‘liq tugamadi: ' . $exception->getMessage();
         }
 
         return response()->json([
