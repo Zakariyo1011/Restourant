@@ -74,6 +74,14 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
             if ($term && !in_array($term, $foodKeywords)) {
                 $foodKeywords[] = $term;
             }
+
+            $parts = preg_split('/[^\pL\pN]+/u', $term) ?: [];
+            foreach ($parts as $part) {
+                $part = mb_strtolower(trim($part));
+                if (mb_strlen($part) >= 3 && !in_array($part, $foodKeywords)) {
+                    $foodKeywords[] = $part;
+                }
+            }
         }
     }
 
@@ -86,7 +94,8 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
                 foreach ($foodKeywords as $keyword) {
                     $q->orWhereRaw('LOWER(name) LIKE ?', ['%' . $keyword . '%'])
                       ->orWhereRaw('LOWER(COALESCE(cuisine_type, \'\')) LIKE ?', ['%' . $keyword . '%'])
-                      ->orWhereRaw('LOWER(COALESCE(city, \'\')) LIKE ?', ['%' . $keyword . '%']);
+                      ->orWhereRaw('LOWER(COALESCE(city, \'\')) LIKE ?', ['%' . $keyword . '%'])
+                      ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ['%' . $keyword . '%']);
                 }
             });
         })

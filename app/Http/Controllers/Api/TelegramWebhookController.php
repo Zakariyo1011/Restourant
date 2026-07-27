@@ -183,6 +183,20 @@ class TelegramWebhookController extends Controller
             $keywords = array_merge($keywords, array_values($foodType->translations));
         }
 
+        foreach (explode('|', $foodTypeSlug) as $term) {
+            $term = trim($term);
+            if ($term !== '') {
+                $keywords[] = $term;
+            }
+
+            $parts = preg_split('/[^\pL\pN]+/u', mb_strtolower($term)) ?: [];
+            foreach ($parts as $part) {
+                if (mb_strlen($part) >= 3) {
+                    $keywords[] = $part;
+                }
+            }
+        }
+
         $normalizedKeywords = collect($keywords)
             ->filter(fn ($item) => is_string($item) && trim($item) !== '')
             ->map(fn ($item) => mb_strtolower(trim($item)))
@@ -195,7 +209,10 @@ class TelegramWebhookController extends Controller
             ->whereHas('location')
             ->where(function ($query) use ($normalizedKeywords) {
                 foreach ($normalizedKeywords as $keyword) {
-                    $query->orWhereRaw('LOWER(cuisine_type) LIKE ?', ['%' . $keyword . '%']);
+                    $query->orWhereRaw('LOWER(COALESCE(cuisine_type, \'\')) LIKE ?', ['%' . $keyword . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(name, \'\')) LIKE ?', ['%' . $keyword . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ['%' . $keyword . '%'])
+                        ->orWhereRaw('LOWER(COALESCE(city, \'\')) LIKE ?', ['%' . $keyword . '%']);
                 }
             })
             ->get()
@@ -219,7 +236,6 @@ class TelegramWebhookController extends Controller
                 ];
             })
             ->sortBy('distance')
-            ->filter(fn ($restaurant) => !empty($restaurant['image_url']))
             ->take(5)
             ->values();
 
@@ -230,7 +246,10 @@ class TelegramWebhookController extends Controller
             return;
         }
 
-        $media = $restaurants->values()->map(function ($restaurant, $index) {
+        $media = $restaurants
+            ->filter(fn ($restaurant) => !empty($restaurant['image_url']))
+            ->values()
+            ->map(function ($restaurant, $index) {
             return [
                 'type' => 'photo',
                 'media' => $restaurant['image_url'],
@@ -239,7 +258,17 @@ class TelegramWebhookController extends Controller
             ];
         })->all();
 
-        $this->sendMediaGroup($chatId, $media);
+        if (!empty($media)) {
+            $this->sendMediaGroup($chatId, $media);
+        } else {
+            $lines = $restaurants->map(function ($restaurant, $index) {
+                return $this->restaurantCaption($restaurant, $index);
+            })->all();
+
+            $this->sendText($chatId, implode("\n\n", $lines), [
+                'parse_mode' => 'HTML',
+            ]);
+        }
 
         $this->sendText($chatId, $messages['search_again'], [
             'reply_markup' => $this->mainKeyboardMarkup($lang),

@@ -9,6 +9,17 @@ use Illuminate\Support\Facades\Http;
 
 class AdminController extends Controller
 {
+    private const COUNTRY_CITY_PRESETS = [
+        'USA' => ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'Dallas', 'San Diego', 'San Jose', 'San Antonio'],
+        'Saudi Arabia' => ['Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dammam', 'Khobar', 'Tabuk', 'Buraidah', 'Hail', 'Najran'],
+        'UAE' => ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Al Ain', 'Umm Al Quwain'],
+        'Malaysia' => ['Kuala Lumpur', 'George Town', 'Johor Bahru', 'Ipoh', 'Shah Alam', 'Malacca City', 'Kota Kinabalu', 'Kuching'],
+        'Thailand' => ['Bangkok', 'Chiang Mai', 'Phuket', 'Pattaya', 'Hat Yai', 'Khon Kaen', 'Nakhon Ratchasima', 'Udon Thani'],
+        'Vietnam' => ['Ho Chi Minh City', 'Hanoi', 'Da Nang', 'Hai Phong', 'Can Tho', 'Nha Trang', 'Hue', 'Vung Tau'],
+        'Turkey' => ['Istanbul', 'Ankara', 'Izmir', 'Bursa', 'Antalya', 'Konya', 'Adana', 'Gaziantep', 'Mersin', 'Kayseri'],
+        'Russia' => ['Moscow', 'Saint Petersburg', 'Novosibirsk', 'Yekaterinburg', 'Kazan', 'Nizhny Novgorod', 'Samara', 'Omsk', 'Ufa', 'Chelyabinsk'],
+    ];
+
     // Barcha restoranlar ro'yxati (paginated)
     public function restaurants(Request $request)
     {
@@ -92,11 +103,15 @@ class AdminController extends Controller
     public function importGooglePlaces(Request $request)
     {
         $request->validate([
-            'country'      => 'required|string',
-            'cities'       => 'required|array|min:1',
+            'country'      => 'nullable|string|required_without:countries',
+            'countries'    => 'nullable|array|min:1',
+            'countries.*'  => 'string',
+            'cities'       => 'nullable|array|min:1',
             'cities.*'     => 'string',
             'cuisine'      => 'nullable|string',
-            'max'          => 'nullable|integer|min:1|max:200',
+            'max'          => 'nullable|integer|min:1|max:2000',
+            'max_per_country' => 'nullable|integer|min:1|max:500',
+            'auto_cities'  => 'nullable|boolean',
             'user_id'      => 'nullable|integer',
         ]);
 
@@ -106,138 +121,116 @@ class AdminController extends Controller
         }
 
         $country   = $request->input('country');
-        $cities    = $request->input('cities');
+        $cities    = $request->input('cities', []);
+        $countries = $request->input('countries', []);
         $cuisine   = $request->input('cuisine', '');
         $maxTotal  = (int) $request->input('max', 60);
+        $maxPerCountry = (int) $request->input('max_per_country', 0);
+        $autoCities = (bool) $request->boolean('auto_cities', true);
         $userId    = (int) $request->input('user_id', 1);
 
         $created = 0;
         $updated = 0;
         $errors  = [];
-        $perCity = max(1, (int) ceil($maxTotal / count($cities)));
+        $targets = $this->resolveImportTargets($country, $countries, $cities, $autoCities);
 
-        foreach ($cities as $city) {
-            // Query yasash: "restaurant sushi Tokyo Japan"
-            $queryParts = array_filter(['restaurant', $cuisine, $city, $country]);
-            $query = implode(' ', $queryParts);
+        if (empty($targets)) {
+            return response()->json([
+                'message' => 'Import uchun davlat/shahar topilmadi',
+                'created' => 0,
+                'updated' => 0,
+                'errors' => ['Country/cities payload noto‘g‘ri yoki bo‘sh.'],
+            ], 422);
+        }
 
-            $placeIds   = [];
-            $collected  = 0;
-            $nextToken  = null;
+        $perCountryLimit = $maxPerCountry > 0
+            ? $maxPerCountry
+            : max(1, (int) ceil($maxTotal / count($targets)));
 
-            // Text Search: place_id larni yig'ish
-            do {
-                $params = ['query' => $query, 'type' => 'restaurant', 'key' => $apiKey];
-                if ($nextToken) {
-                    $params = ['pagetoken' => $nextToken, 'key' => $apiKey];
-                    sleep(2);
-                }
+        foreach ($targets as $targetCountry => $targetCities) {
+            $perCity = max(1, (int) ceil($perCountryLimit / max(count($targetCities), 1)));
 
-                $res = Http::get('https://maps.googleapis.com/maps/api/place/textsearch/json', $params);
+            foreach ($targetCities as $city) {
+                $placeIds = $this->collectPlaceIds($apiKey, $targetCountry, $city, $cuisine, $perCity, $errors);
 
-                if (! $res->successful()) {
-                    $errors[] = "Text Search failed for {$city}: HTTP " . $res->status();
-                    break;
-                }
+                $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
 
-                $json = $res->json();
-                if (($json['status'] ?? '') === 'REQUEST_DENIED') {
-                    $errors[] = 'Google API: ' . ($json['error_message'] ?? 'REQUEST_DENIED');
-                    break 2;
-                }
+                foreach ($placeIds as $placeId) {
+                    usleep(150000);
 
-                foreach ($json['results'] ?? [] as $r) {
-                    if (isset($r['place_id']) && ! in_array($r['place_id'], $placeIds)) {
-                        $placeIds[] = $r['place_id'];
-                        $collected++;
-                        if ($collected >= $perCity) break;
+                    $detailRes = Http::get('https://maps.googleapis.com/maps/api/place/details/json', [
+                        'place_id' => $placeId,
+                        'fields'   => $detailsFields,
+                        'key'      => $apiKey,
+                    ]);
+
+                    if (! $detailRes->successful()) {
+                        $errors[] = "Details failed for {$placeId}: HTTP " . $detailRes->status();
+                        continue;
                     }
-                }
 
-                $nextToken = $json['next_page_token'] ?? null;
+                    $place = $detailRes->json()['result'] ?? null;
+                    if (! $place) continue;
 
-            } while ($nextToken && $collected < $perCity);
+                    $name    = $place['name'] ?? null;
+                    $address = $place['formatted_address'] ?? null;
+                    $phone   = $place['formatted_phone_number'] ?? null;
+                    $website = $place['website'] ?? null;
+                    $latP    = $place['geometry']['location']['lat'] ?? null;
+                    $lngP    = $place['geometry']['location']['lng'] ?? null;
+                    $rating  = $place['rating'] ?? null;
+                    $types   = $place['types'] ?? [];
+                    $opening = $place['opening_hours']['weekday_text'] ?? null;
 
-            // Har bir place_id uchun detail olish va saqlash
-            $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
+                    $descParts = [];
+                    if ($rating)    $descParts[] = 'Rating: ' . $rating;
+                    if ($types)     $descParts[] = 'Types: ' . implode(', ', $types);
+                    if ($opening)   $descParts[] = 'Hours: ' . implode(' | ', (array) $opening);
+                    if ($website)   $descParts[] = 'Website: ' . $website;
 
-            foreach ($placeIds as $placeId) {
-                usleep(150000);
+                    $attrs = [
+                        'user_id'         => $userId,
+                        'name'            => $name,
+                        'phone'           => $phone,
+                        'website'         => $website,
+                        'is_active'       => true,
+                        'country'         => $targetCountry,
+                        'city'            => $city,
+                        'cuisine_type'    => $cuisine ?: null,
+                        'description'     => implode(' / ', $descParts),
+                        'google_place_id' => $placeId,
+                    ];
 
-                $detailRes = Http::get('https://maps.googleapis.com/maps/api/place/details/json', [
-                    'place_id' => $placeId,
-                    'fields'   => $detailsFields,
-                    'key'      => $apiKey,
-                ]);
+                    $existing = Restaurant::where('google_place_id', $placeId)->first();
+                    if (! $existing && $name) {
+                        $existing = Restaurant::where('name', $name)
+                            ->whereHas('location', fn($q) => $q->where('latitude', $latP)->where('longitude', $lngP))
+                            ->first();
+                    }
 
-                if (! $detailRes->successful()) {
-                    $errors[] = "Details failed for {$placeId}: HTTP " . $detailRes->status();
-                    continue;
-                }
+                    if ($existing) {
+                        $existing->update($attrs);
+                        $restaurant = $existing;
+                        $updated++;
+                    } else {
+                        $restaurant = Restaurant::create($attrs);
+                        $created++;
+                    }
 
-                $place = $detailRes->json()['result'] ?? null;
-                if (! $place) continue;
+                    if ($latP && $lngP) {
+                        $restaurant->location()->updateOrCreate(
+                            ['restaurant_id' => $restaurant->id],
+                            ['latitude' => $latP, 'longitude' => $lngP, 'address' => $address]
+                        );
+                    }
 
-                $name    = $place['name'] ?? null;
-                $address = $place['formatted_address'] ?? null;
-                $phone   = $place['formatted_phone_number'] ?? null;
-                $website = $place['website'] ?? null;
-                $latP    = $place['geometry']['location']['lat'] ?? null;
-                $lngP    = $place['geometry']['location']['lng'] ?? null;
-                $rating  = $place['rating'] ?? null;
-                $types   = $place['types'] ?? [];
-                $opening = $place['opening_hours']['weekday_text'] ?? null;
-
-                $descParts = [];
-                if ($rating)    $descParts[] = 'Rating: ' . $rating;
-                if ($types)     $descParts[] = 'Types: ' . implode(', ', $types);
-                if ($opening)   $descParts[] = 'Hours: ' . implode(' | ', (array) $opening);
-                if ($website)   $descParts[] = 'Website: ' . $website;
-
-                $attrs = [
-                    'user_id'         => $userId,
-                    'name'            => $name,
-                    'phone'           => $phone,
-                    'website'         => $website,
-                    'is_active'       => true,
-                    'country'         => $country,
-                    'city'            => $city,
-                    'cuisine_type'    => $cuisine ?: null,
-                    'description'     => implode(' / ', $descParts),
-                    'google_place_id' => $placeId,
-                ];
-
-                $existing = Restaurant::where('google_place_id', $placeId)->first();
-                if (! $existing && $name) {
-                    $existing = Restaurant::where('name', $name)
-                        ->whereHas('location', fn($q) => $q->where('latitude', $latP)->where('longitude', $lngP))
-                        ->first();
-                }
-
-                if ($existing) {
-                    $existing->update($attrs);
-                    $restaurant = $existing;
-                    $updated++;
-                } else {
-                    $restaurant = Restaurant::create($attrs);
-                    $created++;
-                }
-
-                // Location saqlash
-                if ($latP && $lngP) {
-                    $restaurant->location()->updateOrCreate(
-                        ['restaurant_id' => $restaurant->id],
-                        ['latitude' => $latP, 'longitude' => $lngP, 'address' => $address]
-                    );
-                }
-
-                // Rasmlar (Google URL sifatida saqlash)
-                foreach (array_slice($place['photos'] ?? [], 0, 3) as $photo) {
-                    $ref = $photo['photo_reference'] ?? null;
-                    if (! $ref) continue;
-                    $photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={$ref}&key={$apiKey}";
-                    if (! $restaurant->images()->where('url', $photoUrl)->exists()) {
-                        $restaurant->images()->create(['url' => $photoUrl]);
+                    foreach (array_slice($place['photos'] ?? [], 0, 3) as $photo) {
+                        $ref = $photo['photo_reference'] ?? null;
+                        if (! $ref) continue;
+                        $photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photoreference={$ref}&key={$apiKey}";
+                        if (! $restaurant->images()->where('url', $photoUrl)->exists()) {
+                            $restaurant->images()->create(['url' => $photoUrl]);
+                        }
                     }
                 }
             }
@@ -249,5 +242,107 @@ class AdminController extends Controller
             'updated' => $updated,
             'errors'  => $errors,
         ]);
+    }
+
+    private function resolveImportTargets(?string $country, array $countries, array $cities, bool $autoCities): array
+    {
+        $targets = [];
+
+        if (!empty($countries)) {
+            foreach ($countries as $rawCountry) {
+                $normalized = $this->normalizeCountryName((string) $rawCountry);
+                $presetCities = self::COUNTRY_CITY_PRESETS[$normalized] ?? [];
+                if (!empty($presetCities)) {
+                    $targets[$normalized] = $presetCities;
+                }
+            }
+        }
+
+        if (!empty($country)) {
+            $normalized = $this->normalizeCountryName($country);
+            if (!empty($cities)) {
+                $targets[$normalized] = array_values(array_unique(array_filter(array_map('trim', $cities))));
+            } elseif ($autoCities) {
+                $presetCities = self::COUNTRY_CITY_PRESETS[$normalized] ?? [];
+                if (!empty($presetCities)) {
+                    $targets[$normalized] = $presetCities;
+                }
+            }
+        }
+
+        return array_filter($targets, fn ($value) => is_array($value) && !empty($value));
+    }
+
+    private function normalizeCountryName(string $country): string
+    {
+        $normalized = mb_strtolower(trim($country));
+
+        return match ($normalized) {
+            'us', 'usa', 'america', 'united states', 'united states of america', 'amerika' => 'USA',
+            'saudi', 'saudi arabia', 'saudia arabiston', 'saudi arabiston', 'ksa' => 'Saudi Arabia',
+            'uae', 'united arab emirates', 'birlashgan arab amirliklari' => 'UAE',
+            'malay', 'malaysia' => 'Malaysia',
+            'thai', 'thailand' => 'Thailand',
+            'vietnam', 'viet nam' => 'Vietnam',
+            'turkey', 'turkiye', 'turkiya' => 'Turkey',
+            'russia', 'rossiya', 'rosia' => 'Russia',
+            default => trim($country),
+        };
+    }
+
+    private function collectPlaceIds(string $apiKey, string $country, string $city, string $cuisine, int $targetCount, array &$errors): array
+    {
+        $queryVariants = array_values(array_unique(array_filter([
+            trim("restaurant {$cuisine} {$city} {$country}"),
+            trim("{$cuisine} restaurant {$city} {$country}"),
+            trim("restaurant {$city} {$country}"),
+        ])));
+
+        $placeIds = [];
+
+        foreach ($queryVariants as $query) {
+            $nextToken = null;
+
+            do {
+                $params = ['query' => $query, 'type' => 'restaurant', 'key' => $apiKey];
+                if ($nextToken) {
+                    $params = ['pagetoken' => $nextToken, 'key' => $apiKey];
+                    sleep(2);
+                }
+
+                $res = Http::get('https://maps.googleapis.com/maps/api/place/textsearch/json', $params);
+                if (! $res->successful()) {
+                    $errors[] = "Text Search failed for {$city}, {$country}: HTTP " . $res->status();
+                    break;
+                }
+
+                $json = $res->json();
+                if (($json['status'] ?? '') === 'REQUEST_DENIED') {
+                    $errors[] = 'Google API: ' . ($json['error_message'] ?? 'REQUEST_DENIED');
+                    break 2;
+                }
+
+                foreach ($json['results'] ?? [] as $item) {
+                    $placeId = $item['place_id'] ?? null;
+                    if (!$placeId) {
+                        continue;
+                    }
+                    if (!in_array($placeId, $placeIds, true)) {
+                        $placeIds[] = $placeId;
+                        if (count($placeIds) >= $targetCount) {
+                            break 2;
+                        }
+                    }
+                }
+
+                $nextToken = $json['next_page_token'] ?? null;
+            } while ($nextToken);
+
+            if (count($placeIds) >= $targetCount) {
+                break;
+            }
+        }
+
+        return $placeIds;
     }
 }
