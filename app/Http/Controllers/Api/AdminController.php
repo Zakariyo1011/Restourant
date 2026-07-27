@@ -113,6 +113,8 @@ class AdminController extends Controller
             'max'          => 'nullable|integer|min:1|max:2000',
             'max_per_country' => 'nullable|integer|min:1|max:500',
             'max_runtime_seconds' => 'nullable|integer|min:10|max:240',
+            'skip_updates' => 'nullable|boolean',
+            'search_multiplier' => 'nullable|integer|min:1|max:10',
             'auto_cities'  => 'nullable|boolean',
             'user_id'      => 'nullable|integer',
         ]);
@@ -132,12 +134,16 @@ class AdminController extends Controller
         $maxTotal  = (int) $request->input('max', 60);
         $maxPerCountry = (int) $request->input('max_per_country', 0);
         $maxRuntimeSeconds = (int) $request->input('max_runtime_seconds', 45);
+        $skipUpdates = (bool) $request->boolean('skip_updates', true);
+        $searchMultiplier = (int) $request->input('search_multiplier', $skipUpdates ? 4 : 1);
+        $searchMultiplier = max(1, min($searchMultiplier, 10));
         $autoCities = (bool) $request->boolean('auto_cities', true);
         $userId    = (int) $request->input('user_id', 1);
         $startedAt = microtime(true);
 
         $created = 0;
         $updated = 0;
+        $skipped = 0;
         $errors  = [];
         $targets = $this->resolveImportTargets($country, $countries, $cities, $autoCities);
 
@@ -163,11 +169,19 @@ class AdminController extends Controller
                         break 2;
                     }
 
-                    $placeIds = $this->collectPlaceIds($apiKey, $targetCountry, $city, $cuisine, $perCity, $errors);
+                    $cityCreateTarget = $perCity;
+                    $createdForCity = 0;
+                    $lookupCount = max($cityCreateTarget, $cityCreateTarget * $searchMultiplier);
+
+                    $placeIds = $this->collectPlaceIds($apiKey, $targetCountry, $city, $cuisine, $lookupCount, $errors);
 
                     $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
 
                     foreach ($placeIds as $placeId) {
+                        if ($createdForCity >= $cityCreateTarget) {
+                            break;
+                        }
+
                         if ((microtime(true) - $startedAt) >= $maxRuntimeSeconds) {
                             $errors[] = "Import time budget reached ({$maxRuntimeSeconds}s). Qayta ishga tushiring.";
                             break 3;
@@ -236,6 +250,11 @@ class AdminController extends Controller
                             ->first();
                     }
 
+                    if ($existing && $skipUpdates) {
+                        $skipped++;
+                        continue;
+                    }
+
                     try {
                         if ($existing) {
                             $existing->update($attrs);
@@ -244,6 +263,7 @@ class AdminController extends Controller
                         } else {
                             $restaurant = Restaurant::create($attrs);
                             $created++;
+                            $createdForCity++;
                         }
 
                         if ($latP && $lngP) {
@@ -285,6 +305,7 @@ class AdminController extends Controller
             'message' => "Import yakunlandi. Yaratildi: {$created}, Yangilandi: {$updated}",
             'created' => $created,
             'updated' => $updated,
+            'skipped' => $skipped,
             'errors'  => $errors,
         ]);
     }
