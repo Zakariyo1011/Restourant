@@ -10,6 +10,7 @@ return [
     ],
     'allowed_origins_patterns' => [
         '/^https:\/\/.*\.vercel\.app$/',
+        '/^https:\/\/.*\.railway\.app$/',
     ],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
