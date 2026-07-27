@@ -259,14 +259,17 @@ export const locationHandler = async (ctx: SessionContext) => {
     const msgs = getMessages(language);
 
     if (!location) {
-        await ctx.reply(msgs.requesting[language as keyof typeof msgs.requesting] || msgs.requesting.en);
+        await ctx.reply(
+            msgs.requesting[language as keyof typeof msgs.requesting] || msgs.requesting.en,
+            mainKeyboard(language),
+        );
         return;
     }
 
     let nearbyRestaurants = [];
 
     try {
-        nearbyRestaurants = await getNearbyRestaurants(location);
+        nearbyRestaurants = await getNearbyRestaurants(location, foodType || undefined);
 
         if (foodType) {
             const matchedRestaurants = nearbyRestaurants.filter((restaurant: any) => matchesFoodType(restaurant, foodType));
@@ -276,12 +279,18 @@ export const locationHandler = async (ctx: SessionContext) => {
         }
     } catch (error) {
         console.error('Nearby restaurants fetch failed:', error);
-        await ctx.reply(msgs.fetchError[language as keyof typeof msgs.fetchError] || msgs.fetchError.en);
+        await ctx.reply(
+            msgs.fetchError[language as keyof typeof msgs.fetchError] || msgs.fetchError.en,
+            mainKeyboard(language),
+        );
         return;
     }
 
     if (nearbyRestaurants.length === 0) {
-        await ctx.reply(msgs.notFound[language as keyof typeof msgs.notFound] || msgs.notFound.en);
+        await ctx.reply(
+            msgs.notFound[language as keyof typeof msgs.notFound] || msgs.notFound.en,
+            mainKeyboard(language),
+        );
         return;
     }
 
@@ -302,6 +311,7 @@ export const locationHandler = async (ctx: SessionContext) => {
                 })
                 .join('\n') +
             (msgs.footer[language as keyof typeof msgs.footer] || msgs.footer.en),
+            { reply_markup: mainKeyboard(language).reply_markup },
         );
         return;
     }

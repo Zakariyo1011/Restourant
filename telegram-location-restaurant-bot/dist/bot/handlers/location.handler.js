@@ -236,12 +236,12 @@ const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
     const foodType = (((_b = ctx.session) === null || _b === void 0 ? void 0 : _b.foodType) || '');
     const msgs = getMessages(language);
     if (!location) {
-        yield ctx.reply(msgs.requesting[language] || msgs.requesting.en);
+        yield ctx.reply(msgs.requesting[language] || msgs.requesting.en, (0, main_keyboard_1.mainKeyboard)(language));
         return;
     }
     let nearbyRestaurants = [];
     try {
-        nearbyRestaurants = yield (0, restaurant_service_1.getNearbyRestaurants)(location);
+        nearbyRestaurants = yield (0, restaurant_service_1.getNearbyRestaurants)(location, foodType || undefined);
         if (foodType) {
             const matchedRestaurants = nearbyRestaurants.filter((restaurant) => matchesFoodType(restaurant, foodType));
             if (matchedRestaurants.length > 0) {
@@ -251,11 +251,11 @@ const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
     }
     catch (error) {
         console.error('Nearby restaurants fetch failed:', error);
-        yield ctx.reply(msgs.fetchError[language] || msgs.fetchError.en);
+        yield ctx.reply(msgs.fetchError[language] || msgs.fetchError.en, (0, main_keyboard_1.mainKeyboard)(language));
         return;
     }
     if (nearbyRestaurants.length === 0) {
-        yield ctx.reply(msgs.notFound[language] || msgs.notFound.en);
+        yield ctx.reply(msgs.notFound[language] || msgs.notFound.en, (0, main_keyboard_1.mainKeyboard)(language));
         return;
     }
     const restaurantsWithImages = nearbyRestaurants
@@ -269,7 +269,7 @@ const locationHandler = (ctx) => __awaiter(void 0, void 0, void 0, function* () 
                 return `${index + 1}) ${restaurant.name} — ${restaurant.distance.toFixed(1)} km${addressPart}`;
             })
                 .join('\n') +
-            (msgs.footer[language] || msgs.footer.en));
+            (msgs.footer[language] || msgs.footer.en), { reply_markup: (0, main_keyboard_1.mainKeyboard)(language).reply_markup });
         return;
     }
     for (let index = 0; index < Math.min(5, restaurantsWithImages.length); index += 1) {

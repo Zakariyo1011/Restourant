@@ -46,17 +46,50 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
         'lng' => 'required|numeric|between:-180,180',
         'radius' => 'nullable|numeric|min:0.1|max:200',
         'limit' => 'nullable|integer|min:1|max:20',
+        'food_type' => 'nullable|string|max:100',
     ])->validate();
 
     $lat = (float) $validated['lat'];
     $lng = (float) $validated['lng'];
     $radius = isset($validated['radius']) ? (float) $validated['radius'] : 50.0;
     $limit = isset($validated['limit']) ? (int) $validated['limit'] : 5;
+    $foodTypeFilter = isset($validated['food_type']) ? trim($validated['food_type']) : null;
+
+    // Resolve food_type slug to keywords for matching
+    $foodKeywords = [];
+    if ($foodTypeFilter) {
+        $foodType = \App\Models\FoodType::where('slug', $foodTypeFilter)->first();
+        if ($foodType) {
+            // Use slug and all translations as keywords
+            $foodKeywords[] = mb_strtolower($foodType->slug);
+            if (!empty($foodType->translations)) {
+                foreach ((array) $foodType->translations as $translation) {
+                    $foodKeywords[] = mb_strtolower($translation);
+                }
+            }
+        }
+        // Also add the raw filter value (may be pipe-separated preset filters)
+        foreach (explode('|', $foodTypeFilter) as $term) {
+            $term = mb_strtolower(trim($term));
+            if ($term && !in_array($term, $foodKeywords)) {
+                $foodKeywords[] = $term;
+            }
+        }
+    }
 
     $restaurants = \App\Models\Restaurant::query()
         ->with(['location', 'images'])
         ->where('is_active', true)
         ->whereHas('location')
+        ->when(!empty($foodKeywords), function ($query) use ($foodKeywords) {
+            $query->where(function ($q) use ($foodKeywords) {
+                foreach ($foodKeywords as $keyword) {
+                    $q->orWhereRaw('LOWER(name) LIKE ?', ['%' . $keyword . '%'])
+                      ->orWhereRaw('LOWER(COALESCE(cuisine_type, \'\')) LIKE ?', ['%' . $keyword . '%'])
+                      ->orWhereRaw('LOWER(COALESCE(city, \'\')) LIKE ?', ['%' . $keyword . '%']);
+                }
+            });
+        })
         ->get()
         ->map(function ($restaurant) use ($lat, $lng) {
             $R = 6371;

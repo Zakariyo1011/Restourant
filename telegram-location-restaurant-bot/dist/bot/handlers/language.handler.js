@@ -21,7 +21,7 @@ const CUISINE_PRESETS = [
     {
         key: 'uzbek',
         callback: 'foodpreset_uzbek',
-        filter: 'uzbek|o\'zbek|uzbek cuisine|osh|plov|palov',
+        filter: 'uzbek|o\'zbek|milliy|uzbek cuisine|osh|plov|palov|somsa|shashlik|lagman|manti',
         labels: {
             en: 'Uzbek food',
             ru: 'Узбекская кухня',
@@ -35,7 +35,7 @@ const CUISINE_PRESETS = [
     {
         key: 'kazakh',
         callback: 'foodpreset_kazakh',
-        filter: 'kazakh|qazaq|қазақ|kazakh cuisine|beshbarmak',
+        filter: 'kazakh|qazaq|қазақ|kazakh cuisine|beshbarmak|baursak|kazy|kuyrdak',
         labels: {
             en: 'Kazakh food',
             ru: 'Казахская кухня',
@@ -49,7 +49,7 @@ const CUISINE_PRESETS = [
     {
         key: 'tajik',
         callback: 'foodpreset_tajik',
-        filter: 'tajik|tojik|таджик|tajik cuisine|qurutob',
+        filter: 'tajik|tojik|таджик|tajik cuisine|qurutob|osh|plov|shurbo',
         labels: {
             en: 'Tajik food',
             ru: 'Таджикская кухня',
@@ -63,7 +63,7 @@ const CUISINE_PRESETS = [
     {
         key: 'kyrgyz',
         callback: 'foodpreset_kyrgyz',
-        filter: 'kyrgyz|кыргыз|qirg\'iz|kyrgyz cuisine',
+        filter: 'kyrgyz|кыргыз|qirg\'iz|kyrgyz cuisine|beshbarmak|manty|lagman',
         labels: {
             en: 'Kyrgyz food',
             ru: 'Кыргызская кухня',
@@ -77,7 +77,7 @@ const CUISINE_PRESETS = [
     {
         key: 'turkish',
         callback: 'foodpreset_turkish',
-        filter: 'turkish|türk|turk|turkish cuisine|kebab',
+        filter: 'turkish|türk|turk|turkish cuisine|kebab|doner|baklava|lahmacun',
         labels: {
             en: 'Turkish food',
             ru: 'Турецкая кухня',
@@ -91,7 +91,7 @@ const CUISINE_PRESETS = [
     {
         key: 'turkmen',
         callback: 'foodpreset_turkmen',
-        filter: 'turkmen|türkmen|turkman|turkmen cuisine|dograma',
+        filter: 'turkmen|türkmen|turkman|turkmen cuisine|dograma|ichlekli|chorba',
         labels: {
             en: 'Turkmen food',
             ru: 'Туркменская кухня',
@@ -233,7 +233,7 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
         }
         // Edit inline message to show what was selected
         yield ctx.editMessageText(selectedLabel || 'Selected').catch(() => undefined);
-        // Send confirmation with location request button
+        // Send confirmation with full main keyboard (always visible) + location button
         const locationLabels = {
             en: 'Share location', ru: 'Отправить локацию',
             uz: 'Joylashuv yuborish', kk: 'Орналасқан жерді жіберу',
@@ -249,9 +249,13 @@ const handleFoodTypeSelection = (ctx) => __awaiter(void 0, void 0, void 0, funct
             tg: `${selectedLabel} интихоб шуд. Ҷойгиршавиро ирсол кунед:`,
             tr: `${selectedLabel} seçildi. Konumunuzu gönderin:`,
         };
+        const selectLanguageLabel = { en: 'Choose language', ru: 'Выбрать язык', uz: 'Til tanlash', kk: 'Тілді таңдау', ky: 'Тилди тандоо', tg: 'Интихоби забон', tr: 'Dil seçimi' };
+        const selectFoodLabel = { en: 'Food type', ru: 'Тип кухни', uz: 'Ovqat turi', kk: 'Тағам түрі', ky: 'Тамак түрү', tg: 'Навъи хӯрок', tr: 'Yemek türü' };
         yield ctx.reply(confirmLabels[lang] || `${selectedLabel} selected. Share your location:`, telegraf_1.Markup.keyboard([
+            [selectLanguageLabel[lang] || selectLanguageLabel.en],
+            [selectFoodLabel[lang] || selectFoodLabel.en],
             [telegraf_1.Markup.button.locationRequest(locationLabels[lang] || 'Share location')],
-        ]).resize().oneTime());
+        ]).resize().persistent());
     }
     catch (error) {
         console.error('Error in food type selection:', error);

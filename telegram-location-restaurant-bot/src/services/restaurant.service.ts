@@ -22,14 +22,18 @@ type NearbyApiEnvelope = {
     data?: RestaurantApiResponse;
 };
 
-export const getNearbyRestaurants = async (userLocation: Location): Promise<Restaurant[]> => {
+export const getNearbyRestaurants = async (userLocation: Location, foodType?: string): Promise<Restaurant[]> => {
+    const params: Record<string, string | number | undefined> = {
+        lat: userLocation.latitude,
+        lng: userLocation.longitude,
+        radius: config.NEARBY_RADIUS_KM,
+        limit: config.NEARBY_LIMIT,
+    };
+    if (foodType) {
+        params.food_type = foodType;
+    }
     const response = await axios.get<RestaurantApiResponse | NearbyApiEnvelope>(`${config.API_BASE_URL}/restaurants/nearby`, {
-        params: {
-            lat: userLocation.latitude,
-            lng: userLocation.longitude,
-            radius: config.NEARBY_RADIUS_KM,
-            limit: config.NEARBY_LIMIT,
-        },
+        params,
     });
 
     const payload = Array.isArray(response.data)

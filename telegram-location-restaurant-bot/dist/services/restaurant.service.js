@@ -16,15 +16,19 @@ exports.getNearbyRestaurants = void 0;
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("../config");
 const distance_util_1 = require("../utils/distance.util");
-const getNearbyRestaurants = (userLocation) => __awaiter(void 0, void 0, void 0, function* () {
+const getNearbyRestaurants = (userLocation, foodType) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
+    const params = {
+        lat: userLocation.latitude,
+        lng: userLocation.longitude,
+        radius: config_1.config.NEARBY_RADIUS_KM,
+        limit: config_1.config.NEARBY_LIMIT,
+    };
+    if (foodType) {
+        params.food_type = foodType;
+    }
     const response = yield axios_1.default.get(`${config_1.config.API_BASE_URL}/restaurants/nearby`, {
-        params: {
-            lat: userLocation.latitude,
-            lng: userLocation.longitude,
-            radius: config_1.config.NEARBY_RADIUS_KM,
-            limit: config_1.config.NEARBY_LIMIT,
-        },
+        params,
     });
     const payload = Array.isArray(response.data)
         ? response.data
