@@ -156,21 +156,32 @@ class AdminController extends Controller
                 $detailsFields = 'place_id,name,formatted_address,formatted_phone_number,website,geometry,opening_hours,rating,types,photos';
 
                 foreach ($placeIds as $placeId) {
-                    usleep(150000);
+                    usleep(250000);
 
-                    $detailRes = Http::get('https://maps.googleapis.com/maps/api/place/details/json', [
-                        'place_id' => $placeId,
-                        'fields'   => $detailsFields,
-                        'key'      => $apiKey,
-                    ]);
+                    try {
+                        $detailRes = Http::timeout(15)->get('https://maps.googleapis.com/maps/api/place/details/json', [
+                            'place_id' => $placeId,
+                            'fields'   => $detailsFields,
+                            'key'      => $apiKey,
+                        ]);
 
-                    if (! $detailRes->successful()) {
-                        $errors[] = "Details failed for {$placeId}: HTTP " . $detailRes->status();
+                        if (! $detailRes->successful()) {
+                            $errors[] = "Details failed for {$placeId}: HTTP " . $detailRes->status();
+                            continue;
+                        }
+
+                        $json = $detailRes->json();
+                        if (($json['status'] ?? '') === 'OVER_QUERY_LIMIT') {
+                            $errors[] = "Google API quota exceeded at {$placeId}. Import stopped.";
+                            break 2;
+                        }
+
+                        $place = $json['result'] ?? null;
+                        if (! $place) continue;
+                    } catch (\Exception $e) {
+                        $errors[] = "Exception for {$placeId}: " . $e->getMessage();
                         continue;
                     }
-
-                    $place = $detailRes->json()['result'] ?? null;
-                    if (! $place) continue;
 
                     $name    = $place['name'] ?? null;
                     $address = $place['formatted_address'] ?? null;
@@ -302,24 +313,52 @@ class AdminController extends Controller
 
         foreach ($queryVariants as $query) {
             $nextToken = null;
+            $attempts = 0;
+            $maxAttempts = 5;
 
             do {
+                $attempts++;
+                if ($attempts > $maxAttempts) {
+                    $errors[] = "Max attempts reached for query: {$query}";
+                    break;
+                }
+
+                sleep(1);
+
                 $params = ['query' => $query, 'type' => 'restaurant', 'key' => $apiKey];
                 if ($nextToken) {
                     $params = ['pagetoken' => $nextToken, 'key' => $apiKey];
                     sleep(2);
                 }
 
-                $res = Http::get('https://maps.googleapis.com/maps/api/place/textsearch/json', $params);
+                try {
+                    $res = Http::timeout(15)->get('https://maps.googleapis.com/maps/api/place/textsearch/json', $params);
+                } catch (\Exception $e) {
+                    $errors[] = "Network error for {$city}, {$country}: " . $e->getMessage();
+                    break;
+                }
+
                 if (! $res->successful()) {
                     $errors[] = "Text Search failed for {$city}, {$country}: HTTP " . $res->status();
                     break;
                 }
 
                 $json = $res->json();
-                if (($json['status'] ?? '') === 'REQUEST_DENIED') {
+                $status = $json['status'] ?? '';
+
+                if ($status === 'OVER_QUERY_LIMIT') {
+                    $errors[] = "Google API quota exceeded for {$city}, {$country}. Please try again later.";
+                    break 2;
+                }
+
+                if ($status === 'REQUEST_DENIED') {
                     $errors[] = 'Google API: ' . ($json['error_message'] ?? 'REQUEST_DENIED');
                     break 2;
+                }
+
+                if ($status !== 'OK' && $status !== 'ZERO_RESULTS') {
+                    $errors[] = "Google API status {$status} for {$city}, {$country}";
+                    break;
                 }
 
                 foreach ($json['results'] ?? [] as $item) {
