@@ -22,6 +22,7 @@ class Restaurant extends Model
         'country',
         'city',
         'price_range',
+        'rating',
         'working_hours',
         'website',
         'instagram',
@@ -31,6 +32,7 @@ class Restaurant extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'working_hours' => 'array',
+        'rating' => 'float',
     ];
 
     public function owner()

@@ -44,8 +44,8 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
     $validated = validator($request->all(), [
         'lat' => 'required|numeric|between:-90,90',
         'lng' => 'required|numeric|between:-180,180',
-        'radius' => 'nullable|numeric|min:0.1|max:200',
-        'limit' => 'nullable|integer|min:1|max:20',
+        'radius' => 'nullable|numeric|min:0.1|max:300',
+        'limit' => 'nullable|integer|min:1|max:100',
         'food_type' => 'nullable|string|max:100',
     ])->validate();
 
@@ -129,6 +129,7 @@ Route::get('/restaurants/nearby', function (Illuminate\Http\Request $request) {
                 'city' => $restaurant->city,
                 'cuisine_type' => $restaurant->cuisine_type,
                 'price_range' => $restaurant->price_range,
+                'rating' => $restaurant->rating,
                 'website' => $restaurant->website,
                 'image_url' => $imageUrl,
                 'distance' => $distance,

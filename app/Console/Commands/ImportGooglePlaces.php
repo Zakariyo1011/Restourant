@@ -121,6 +121,7 @@ class ImportGooglePlaces extends Command
                 'phone' => $phone,
                 'website' => $website,
                 'is_active' => true,
+                'rating' => $rating,
             ];
 
             // build description
