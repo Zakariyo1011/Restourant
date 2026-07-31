@@ -5,6 +5,7 @@ return [
     'tajik' => 'Тәжік',
     'kazakh' => 'Қазақ',
     'kyrgyz' => 'Қырғыз',
+    'turkmen' => 'Түрікмен',
     'turkish' => 'Түрік',
     'arabic' => 'Араб',
     'persian' => 'Парсы',
