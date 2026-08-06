@@ -45,8 +45,10 @@ class AuthController extends Controller
                     'google_id'  => $googleUser->getId(),
                     'name'       => $googleUser->getName(),
                     'email'      => $googleUser->getEmail(),
-                    'role'       => 'owner',
-                    'is_active'  => false,
+                    // Oddiy foydalanuvchi (mijoz) sifatida ro'yxatdan o'tadi.
+                    // Restoran egasi bo'lish alohida ariza/jarayon orqali amalga oshiriladi.
+                    'role'       => 'user',
+                    'is_active'  => true,
                     'password'   => null,
                 ]);
             }

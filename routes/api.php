@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\LanguageController;
 use App\Http\Controllers\Api\PromoSlideController;
+use App\Http\Controllers\Api\FavoriteController;
 
 // Test
 Route::get('/test', function () {
@@ -180,6 +181,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/my-restaurant', [RestaurantController::class, 'destroy']);
     Route::post('/me/locale', [AuthController::class, 'updateLocale']);
     Route::post('/send-arija', [RestaurantController::class, 'sendArija']);
+
+    // Sevimlilar (barcha login qilgan foydalanuvchilar uchun)
+    Route::get('/favorites', [FavoriteController::class, 'index']);
+    Route::post('/favorites/{restaurant}', [FavoriteController::class, 'store']);
+    Route::delete('/favorites/{restaurant}', [FavoriteController::class, 'destroy']);
 });
 
 // Promo slides — public
